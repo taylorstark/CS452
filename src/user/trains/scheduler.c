@@ -10,6 +10,8 @@
 
 #define SCHEDULER_NAME "scheduler"
 
+#define SCHEDULER_TRAIN_NOT_MOVING_THRESHOLD 100
+
 // Debug builds are slower than release builds
 #ifdef NDEBUG
 #define SCHEDULER_ALLOWABLE_ARRIVAL_THRESHOLD 5 // 50 ms
@@ -116,16 +118,23 @@ SchedulerpTask
                 UINT distanceBetweenNodes;
                 VERIFY(SUCCESSFUL(TrackDistanceBetween(request.trainLocation.location.node, trainSchedule->nextNode, &distanceBetweenNodes)));
 
-                // Due to sensor latency, we may believe we've gone past the sensor
-                // If we think we've gone past the sensor, then just use our last arrival time guess
-                if(distanceBetweenNodes > request.trainLocation.location.distancePastNode)
+                if(request.trainLocation.velocity > SCHEDULER_TRAIN_NOT_MOVING_THRESHOLD)
                 {
-                    INT currentTime = Time();
-                    ASSERT(SUCCESSFUL(currentTime));
+                    // Due to sensor latency, we may believe we've gone past the sensor
+                    // If we think we've gone past the sensor, then just use our last arrival time guess
+                    if(distanceBetweenNodes > request.trainLocation.location.distancePastNode)
+                    {
+                        INT currentTime = Time();
+                        ASSERT(SUCCESSFUL(currentTime));
 
-                    UINT timeTillNextNode = (distanceBetweenNodes - request.trainLocation.location.distancePastNode) / request.trainLocation.velocity;
+                        UINT timeTillNextNode = (distanceBetweenNodes - request.trainLocation.location.distancePastNode) / request.trainLocation.velocity;
 
-                    trainSchedule->expectedArrivalTime = currentTime + timeTillNextNode;
+                        trainSchedule->expectedArrivalTime = currentTime + timeTillNextNode;
+                    }
+                }
+                else
+                {
+                    trainSchedule->expectedArrivalTime = 0;
                 }
 
                 break;

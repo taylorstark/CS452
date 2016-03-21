@@ -294,8 +294,8 @@ AttributionServerpTask
                 if(NULL != attributionData)
                 {
                     TRACK_NODE* temp = attributionData->currentNode;
-                    attributionData->currentNode = attributionData->nextNode;
-                    attributionData->nextNode = temp;
+                    attributionData->currentNode = attributionData->nextNode->reverse;
+                    attributionData->nextNode = temp->reverse;
                 }
                 else
                 {
@@ -309,7 +309,13 @@ AttributionServerpTask
             {
                 // Unblock the notifier ASAP
                 VERIFY(SUCCESSFUL(Reply(senderId, NULL, 0)));
-                Log("TODO - Attribution server - Switch %d changed", request.sw);
+
+                for(UINT i = 0; i < numTrains; i++)
+                {
+                    // TODO - Only do this if the train is before a switch
+                    VERIFY(SUCCESSFUL(TrackFindNextSensor(trackedTrains[i].currentNode, &trackedTrains[i].nextNode)));
+                }
+
                 break;
             }
 

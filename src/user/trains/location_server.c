@@ -16,7 +16,6 @@
 #define LOCATION_SERVER_NOTIFIER_UPDATE_INTERVAL 3 // 30 ms
 #define LOCATION_SERVER_ALPHA 5
 #define LOCATION_SERVER_AVERAGE_SENSOR_LATENCY 70 // 70 ms
-#define LOCATION_SERVER_TRAIN_NOT_MOVING_THRESHOLD 100
 
 typedef enum _LOCATION_SERVER_REQUEST_TYPE
 {
@@ -265,19 +264,17 @@ LocationServerpTask
                         if(diff >= LOCATION_SERVER_NOTIFIER_UPDATE_INTERVAL)
                         {
                             // TODO - Take in to account acceleration
-                            if(trainData->velocity > LOCATION_SERVER_TRAIN_NOT_MOVING_THRESHOLD)
-                            {
-                                // Update the train's location
-                                trainData->location.distancePastNode += diff * trainData->velocity;
-                                trainData->lastTimeLocationUpdated = currentTime;
-                                
-                                // Send the updated location to the registrar to send to any registrants
-                                request.trainLocation.train = trainData->train;
-                                request.trainLocation.location = trainData->location;
-                                request.trainLocation.velocity = trainData->velocity;
 
-                                VERIFY(SUCCESSFUL(Send(locationServerRegistrarId, &request, sizeof(request), NULL, 0)));
-                            }
+                            // Update the train's location
+                            trainData->location.distancePastNode += diff * trainData->velocity;
+                            trainData->lastTimeLocationUpdated = currentTime;
+                            
+                            // Send the updated location to the registrar to send to any registrants
+                            request.trainLocation.train = trainData->train;
+                            request.trainLocation.location = trainData->location;
+                            request.trainLocation.velocity = trainData->velocity;
+
+                            VERIFY(SUCCESSFUL(Send(locationServerRegistrarId, &request, sizeof(request), NULL, 0)));
                         }
                     }
                 }
