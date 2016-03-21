@@ -34,41 +34,34 @@ CalibrationpSteadyStateVelocityTask
 
     while(1)
     {
-        CHANGED_SENSORS changedSensors;
-        VERIFY(SUCCESSFUL(SensorAwait(&changedSensors)));
+        SENSOR_DATA data;
+        VERIFY(SUCCESSFUL(SensorAwait(&data)));
 
-        for(UINT i = 0; i < changedSensors.size; i++)
+        if(!data.isOn)
         {
-            SENSOR_DATA* data = &changedSensors.sensors[i];
+            continue;
+        }
 
-            if(!data->isOn)
+        if('C' == data.sensor.module && 13 == data.sensor.number)
+        {
+            startTime = Time();
+        }
+        else if('E' == data.sensor.module && 7 == data.sensor.number)
+        {
+            UINT totalTime = Time() - startTime;
+            bwprintf(BWCOM2, "%d\r\n", totalTime);
+
+            if(currentSpeed == 5)
             {
-                continue;
+                bwprintf(BWCOM2, "\r\n");
+                currentSpeed = 14;
+            }
+            else
+            {
+                currentSpeed = currentSpeed - 1;
             }
 
-            SENSOR sensor = data->sensor;
-
-            if('C' == sensor.module && 13 == sensor.number)
-            {
-                startTime = Time();
-            }
-            else if('E' == sensor.module && 7 == sensor.number)
-            {
-                UINT totalTime = Time() - startTime;
-                bwprintf(BWCOM2, "%d\r\n", totalTime);
-
-                if(currentSpeed == 5)
-                {
-                    bwprintf(BWCOM2, "\r\n");
-                    currentSpeed = 14;
-                }
-                else
-                {
-                    currentSpeed = currentSpeed - 1;
-                }
-
-                VERIFY(SUCCESSFUL(TrainSetSpeed(TRAIN_NUMBER, currentSpeed)));
-            }
+            VERIFY(SUCCESSFUL(TrainSetSpeed(TRAIN_NUMBER, currentSpeed)));
         }
     }
 }
@@ -79,5 +72,5 @@ CalibrationCreateTask
         VOID
     )
 {
-    VERIFY(SUCCESSFUL(Create(LowestUserPriority, CalibrationpSteadyStateVelocityTask)));
+    VERIFY(SUCCESSFUL(Create(HighestUserPriority, CalibrationpSteadyStateVelocityTask)));
 }

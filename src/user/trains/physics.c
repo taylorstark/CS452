@@ -96,3 +96,13 @@ PhysicsSteadyStateDeceleration
     return g_steadyStateDeceleration[train][speed];
 }
 
+UINT
+PhysicsStoppingDistance
+    (
+        IN UCHAR train, 
+        IN UINT velocity
+    )
+{
+    return 980000;
+}
+

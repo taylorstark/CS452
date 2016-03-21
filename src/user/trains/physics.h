@@ -28,3 +28,10 @@ PhysicsSteadyStateDeceleration
         IN UCHAR train,
         IN UCHAR speed
     );
+
+UINT
+PhysicsStoppingDistance
+    (
+        IN UCHAR train, 
+        IN UINT velocity
+    );
