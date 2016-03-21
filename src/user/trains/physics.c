@@ -96,13 +96,25 @@ PhysicsSteadyStateDeceleration
     return g_steadyStateDeceleration[train][speed];
 }
 
+static
+inline
+UINT
+PhysicspDistanceFromPickupToFrontOfTrain
+    (
+        IN DIRECTION direction
+    )
+{
+    return DirectionForward == direction ? 20000 : 140000;
+}
+
 UINT
 PhysicsStoppingDistance
     (
         IN UCHAR train, 
-        IN UINT velocity
+        IN UINT velocity, 
+        IN DIRECTION direction
     )
 {
-    return 1640000;
+    return 1630000 + PhysicspDistanceFromPickupToFrontOfTrain(direction);
 }
 

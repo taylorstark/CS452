@@ -12,14 +12,20 @@
 
 typedef enum _STOP_SERVER_REQUEST_TYPE
 {
-    LocationUpdateRequest = 0, 
+    LocationUpdateRequest = 0,
+    DirectionUpdateRequest,
     StopTrainAtLocationRequest
 } STOP_SERVER_REQUEST_TYPE;
 
 typedef struct _STOP_SERVER_REQUEST
 {
     STOP_SERVER_REQUEST_TYPE type;
-    TRAIN_LOCATION trainLocation;
+
+    union
+    {
+        TRAIN_LOCATION trainLocation;
+        TRAIN_DIRECTION trainDirection;
+    };
 } STOP_SERVER_REQUEST;
 
 static
@@ -44,6 +50,26 @@ StopServerpLocationNotifierTask
 
 static
 VOID
+StopServerpDirectionChangeNotifierTask
+    (
+        VOID
+    )
+{
+    INT stopServerId = MyParentTid();
+    ASSERT(SUCCESSFUL(stopServerId));
+
+    STOP_SERVER_REQUEST request;
+    request.type = DirectionUpdateRequest;
+
+    while(1)
+    {
+        VERIFY(SUCCESSFUL(TrainDirectionChangeAwait(&request.trainDirection)));
+        VERIFY(SUCCESSFUL(Send(stopServerId, &request, sizeof(request), NULL, 0)));
+    }
+}
+
+static
+VOID
 StopServerpTask
     (
         VOID
@@ -52,8 +78,12 @@ StopServerpTask
     LOCATION stopLocations[MAX_TRAINS];
     RtMemset(stopLocations, sizeof(stopLocations), 0);
 
+    DIRECTION directions[MAX_TRAINS];
+    RtMemset(directions, sizeof(directions), DirectionForward);
+
     VERIFY(SUCCESSFUL(RegisterAs(STOP_SERVER_NAME)));
     VERIFY(SUCCESSFUL(Create(HighestUserPriority, StopServerpLocationNotifierTask)));
+    VERIFY(SUCCESSFUL(Create(HighestUserPriority, StopServerpDirectionChangeNotifierTask)));
 
     while(1)
     {
@@ -77,23 +107,26 @@ StopServerpTask
                     UINT distanceToTarget;
                     VERIFY(SUCCESSFUL(TrackDistanceBetween(request.trainLocation.location.node, stopLocation->node, &distanceToTarget)));
 
+                    DIRECTION direction = directions[request.trainLocation.train];
+
                     UINT remainingDistance = distanceToTarget - request.trainLocation.location.distancePastNode;
-                    UINT stoppingDistance = PhysicsStoppingDistance(request.trainLocation.train, request.trainLocation.velocity);
+                    UINT stoppingDistance = PhysicsStoppingDistance(request.trainLocation.train, request.trainLocation.velocity, direction);
 
                     if(remainingDistance < stoppingDistance)
                     {
-                        Log("Stopping %d", request.trainLocation.train);
+                        Log("Stopping %d at %s (currently %d away)", request.trainLocation.train, stopLocation->node->name, remainingDistance);
                         VERIFY(SUCCESSFUL(TrainSetSpeed(request.trainLocation.train, 0)));
                         RtMemset(stopLocation, sizeof(*stopLocation), 0);
                     }
-                    else
-                    {
-                        Log("%d is %d from target", request.trainLocation.train, remainingDistance);
-                    }
-
-                    // TODO: What if the train is going in reverse? Longer distance between pickup and sensor
                 }
 
+                break;
+            }
+            
+            case DirectionUpdateRequest:
+            {
+                directions[request.trainDirection.train] = request.trainDirection.direction;
+                VERIFY(SUCCESSFUL(Reply(senderId, NULL, 0)));
                 break;
             }
 

@@ -13,7 +13,7 @@
 #define LOCATION_SERVER_NAME "location"
 #define LOCATION_SERVER_REGISTRAR_NAME "location_registrar"
 
-#define LOCATION_SERVER_NOTIFIER_UPDATE_INTERVAL 3 // 30 ms
+#define LOCATION_SERVER_NOTIFIER_UPDATE_INTERVAL 2 // 20 ms
 #define LOCATION_SERVER_ALPHA 5
 #define LOCATION_SERVER_AVERAGE_SENSOR_LATENCY 70 // 70 ms
 
@@ -218,7 +218,7 @@ LocationServerpTask
     )
 {
     VERIFY(SUCCESSFUL(RegisterAs(LOCATION_SERVER_NAME)));
-    VERIFY(SUCCESSFUL(Create(Priority24, LocationServerpVelocityNotifierTask)));
+    VERIFY(SUCCESSFUL(Create(Priority23, LocationServerpVelocityNotifierTask)));
     VERIFY(SUCCESSFUL(Create(HighestUserPriority, LocationServerpAttributedSensorNotifierTask)));
     VERIFY(SUCCESSFUL(Create(HighestUserPriority, LocationServerpSpeedChangeNotifierTask)));
     VERIFY(SUCCESSFUL(Create(HighestUserPriority, LocationServerpDirectionChangeNotifierTask)));
@@ -251,7 +251,7 @@ LocationServerpTask
 
                 LOCATION_SERVER_REGISTRAR_REQUEST request;
                 request.type = LocationUpdateRequest;
-
+                
                 for(UINT i = 0; i < numTrackedTrains; i++)
                 {
                     TRAIN_DATA* trainData = &trackedTrains[i];
@@ -261,18 +261,21 @@ LocationServerpTask
                     {
                         INT diff = currentTime - trainData->lastTimeLocationUpdated;
 
-                        // TODO - Take in to account acceleration
+                        if(diff > 0)
+                        {
+                            // TODO - Take in to account acceleration
 
-                        // Update the train's location
-                        trainData->location.distancePastNode += diff * trainData->velocity;
-                        trainData->lastTimeLocationUpdated = currentTime;
-                        
-                        // Send the updated location to the registrar to send to any registrants
-                        request.trainLocation.train = trainData->train;
-                        request.trainLocation.location = trainData->location;
-                        request.trainLocation.velocity = trainData->velocity;
+                            // Update the train's location
+                            trainData->location.distancePastNode += diff * trainData->velocity;
+                            trainData->lastTimeLocationUpdated = currentTime;
+                            
+                            // Send the updated location to the registrar to send to any registrants
+                            request.trainLocation.train = trainData->train;
+                            request.trainLocation.location = trainData->location;
+                            request.trainLocation.velocity = trainData->velocity;
 
-                        VERIFY(SUCCESSFUL(Send(locationServerRegistrarId, &request, sizeof(request), NULL, 0)));
+                            VERIFY(SUCCESSFUL(Send(locationServerRegistrarId, &request, sizeof(request), NULL, 0)));
+                        }
                     }
                 }
 
@@ -380,7 +383,7 @@ LocationServerCreateTask
         VOID
     )
 {
-    VERIFY(SUCCESSFUL(Create(Priority24, LocationServerpTask)));
+    VERIFY(SUCCESSFUL(Create(Priority23, LocationServerpTask)));
 }
 
 INT

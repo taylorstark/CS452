@@ -24,7 +24,7 @@ InitTrainTasks
 {
     // Initialize libraries
     PhysicsInit();
-    TrackInit(TrackB);
+    TrackInit(TrackA);
 
     // Setup the display
     DisplayCreateTask();

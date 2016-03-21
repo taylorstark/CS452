@@ -301,9 +301,6 @@ TrainpTask
                 speeds[request.train - 1] = 0;
                 VERIFY(SUCCESSFUL(Reply(sender, NULL, 0)));
 
-                // Let tasks know the train is stopping
-                TrainpNotifySpeedChange(&awaitingSpeedChangeTasks, request.train, 0);
-
                 // Schedule a task to reverse the train's direction after it has come to a stop
                 TRAIN_WORKER_REQUEST workerRequest;
                 workerRequest.delay = 100 * (oldSpeed / 3 + 1); // TODO - More accurate stopping time
@@ -315,6 +312,9 @@ TrainpTask
                 nextWorkerTask++;
 
                 VERIFY(SUCCESSFUL(Send(nextWorkerTaskId, &workerRequest, sizeof(workerRequest), NULL, 0)));
+
+                // Let tasks know the train is stopping
+                TrainpNotifySpeedChange(&awaitingSpeedChangeTasks, request.train, 0);
                 break;
             }
 
@@ -338,12 +338,9 @@ TrainpTask
 
                 directions[request.train - 1] = newDirection;
 
-                // Let tasks know about the new direction
-                TrainpNotifyDirectionChange(&awaitingDirectionChangeTasks, request.train, newDirection);
-
                 // Schedule a task to speed the train back up
                 TRAIN_WORKER_REQUEST workerRequest;
-                workerRequest.delay = 10; // TODO - Why do we need this?
+                workerRequest.delay = 5; // TODO - Why do we need this?
                 workerRequest.request.type = SetSpeedRequest;
                 workerRequest.request.train = request.train;
                 workerRequest.request.speed = request.speed;
@@ -352,6 +349,9 @@ TrainpTask
                 nextWorkerTask++;
                 
                 VERIFY(SUCCESSFUL(Send(nextWorkerTaskId, &workerRequest, sizeof(workerRequest), NULL, 0)));
+
+                // Let tasks know about the new direction
+                TrainpNotifyDirectionChange(&awaitingDirectionChangeTasks, request.train, newDirection);
                 break;
             }
 

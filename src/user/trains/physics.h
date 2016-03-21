@@ -1,6 +1,7 @@
 #pragma once
 
 #include <rt.h>
+#include <user/trains.h>
 
 VOID
 PhysicsInit
@@ -33,5 +34,6 @@ UINT
 PhysicsStoppingDistance
     (
         IN UCHAR train, 
-        IN UINT velocity
+        IN UINT velocity, 
+        IN DIRECTION direction
     );
