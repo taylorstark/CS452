@@ -261,21 +261,18 @@ LocationServerpTask
                     {
                         INT diff = currentTime - trainData->lastTimeLocationUpdated;
 
-                        if(diff >= LOCATION_SERVER_NOTIFIER_UPDATE_INTERVAL)
-                        {
-                            // TODO - Take in to account acceleration
+                        // TODO - Take in to account acceleration
 
-                            // Update the train's location
-                            trainData->location.distancePastNode += diff * trainData->velocity;
-                            trainData->lastTimeLocationUpdated = currentTime;
-                            
-                            // Send the updated location to the registrar to send to any registrants
-                            request.trainLocation.train = trainData->train;
-                            request.trainLocation.location = trainData->location;
-                            request.trainLocation.velocity = trainData->velocity;
+                        // Update the train's location
+                        trainData->location.distancePastNode += diff * trainData->velocity;
+                        trainData->lastTimeLocationUpdated = currentTime;
+                        
+                        // Send the updated location to the registrar to send to any registrants
+                        request.trainLocation.train = trainData->train;
+                        request.trainLocation.location = trainData->location;
+                        request.trainLocation.velocity = trainData->velocity;
 
-                            VERIFY(SUCCESSFUL(Send(locationServerRegistrarId, &request, sizeof(request), NULL, 0)));
-                        }
+                        VERIFY(SUCCESSFUL(Send(locationServerRegistrarId, &request, sizeof(request), NULL, 0)));
                     }
                 }
 

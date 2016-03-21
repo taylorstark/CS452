@@ -3,6 +3,7 @@
 #include <user/trains.h>
 
 #include "attribution_server.h"
+#include "calibration.h"
 #include "clock.h"
 #include "display.h"
 #include "input_parser.h"
@@ -41,4 +42,6 @@ InitTrainTasks
     LocationServerCreateTask();
     StopServerCreate();
     SchedulerCreateTask();
+
+    //CalibrationCreateTask();
 }

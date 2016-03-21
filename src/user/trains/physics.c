@@ -103,6 +103,6 @@ PhysicsStoppingDistance
         IN UINT velocity
     )
 {
-    return 980000;
+    return 1640000;
 }
 
