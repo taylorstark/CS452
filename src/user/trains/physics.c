@@ -17,15 +17,15 @@ PhysicsInit
 
     for (UINT i = 0; i < MAX_TRAINS + 1; i++)
     {
-        g_steadyStateVelocities[i][6] = 2958;
-        g_steadyStateVelocities[i][7] = 3552;
-        g_steadyStateVelocities[i][8] = 3964;
-        g_steadyStateVelocities[i][9] = 4555;
-        g_steadyStateVelocities[i][10] = 5082;
-        g_steadyStateVelocities[i][11] = 5657;
-        g_steadyStateVelocities[i][12] = 6182;
-        g_steadyStateVelocities[i][13] = 6633;
-        g_steadyStateVelocities[i][14] = 6633;
+        g_steadyStateVelocities[i][6] = 2912;
+        g_steadyStateVelocities[i][7] = 3521;
+        g_steadyStateVelocities[i][8] = 3949;
+        g_steadyStateVelocities[i][9] = 4448;
+        g_steadyStateVelocities[i][10] = 5025;
+        g_steadyStateVelocities[i][11] = 5476;
+        g_steadyStateVelocities[i][12] = 5924;
+        g_steadyStateVelocities[i][13] = 5924;
+        g_steadyStateVelocities[i][14] = 5924;
     }
 
     RtMemset(g_steadyStateAcceleration, sizeof(g_steadyStateAcceleration), 0);
@@ -115,6 +115,6 @@ PhysicsStoppingDistance
         IN DIRECTION direction
     )
 {
-    return 1630000 + PhysicspDistanceFromPickupToFrontOfTrain(direction);
+    return 880000 + PhysicspDistanceFromPickupToFrontOfTrain(direction);
 }
 

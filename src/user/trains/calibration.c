@@ -6,7 +6,7 @@
 #include <rtosc/assert.h>
 #include <user/trains.h>
 
-#define TRAIN_NUMBER 68
+#define TRAIN_NUMBER 69
 
 static
 VOID
@@ -16,7 +16,6 @@ CalibrationpSteadyStateVelocityTask
     )
 {
     // Setup the track
-    // This currently assumes track B
     VERIFY(SUCCESSFUL(SwitchSetDirection(15, SwitchStraight)));
     VERIFY(SUCCESSFUL(SwitchSetDirection(14, SwitchStraight)));
     VERIFY(SUCCESSFUL(SwitchSetDirection(9, SwitchStraight)));
@@ -29,8 +28,8 @@ CalibrationpSteadyStateVelocityTask
 
     // Have the train go
     //UINT startTime = 0;
-    // currentSpeed = 14;
-    VERIFY(SUCCESSFUL(TrainSetSpeed(TRAIN_NUMBER, 14)));
+    UCHAR currentSpeed = 14;
+    VERIFY(SUCCESSFUL(TrainSetSpeed(TRAIN_NUMBER, currentSpeed)));
 
     while(1)
     {
@@ -42,14 +41,14 @@ CalibrationpSteadyStateVelocityTask
             continue;
         }
 
-        if('C' == data.sensor.module && 13 == data.sensor.number)
+        if('E' == data.sensor.module && 12 == data.sensor.number)
         {
             //startTime = Time();
             VERIFY(SUCCESSFUL(TrainSetSpeed(TRAIN_NUMBER, 0)));
         }
-        /*
-        else if('E' == data.sensor.module && 7 == data.sensor.number)
+        else if('C' == data.sensor.module && 6 == data.sensor.number)
         {
+            /*
             UINT totalTime = Time() - startTime;
             bwprintf(BWCOM2, "%d\r\n", totalTime);
 
@@ -64,8 +63,8 @@ CalibrationpSteadyStateVelocityTask
             }
 
             VERIFY(SUCCESSFUL(TrainSetSpeed(TRAIN_NUMBER, currentSpeed)));
+            */
         }
-        */
     }
 }
 
