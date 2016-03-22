@@ -10,6 +10,7 @@
 #include "location_server.h"
 #include "performance.h"
 #include "physics.h"
+#include "safety.h"
 #include "scheduler.h"
 #include "sensor_server.h"
 #include "stop_server.h"
@@ -24,7 +25,7 @@ InitTrainTasks
 {
     // Initialize libraries
     PhysicsInit();
-    TrackInit(TrackA);
+    TrackInit(TrackB);
 
     // Setup the display
     DisplayCreateTask();
@@ -40,6 +41,7 @@ InitTrainTasks
     SensorServerCreateTask();
     AttributionServerCreate();
     LocationServerCreateTask();
+    SafetyCreateTask();
     StopServerCreate();
     SchedulerCreateTask();
 

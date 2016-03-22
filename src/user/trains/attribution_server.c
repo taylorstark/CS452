@@ -17,6 +17,7 @@ typedef enum _ATTRIBUTION_SERVER_REQUEST_TYPE
     DirectionChangedRequest,
     SwitchChangedRequest,
     AttributedSensorAwaitRequest,
+    GetTrackedTrainsRequest,
     NextExpectedNodeRequest
 } ATTRIBUTION_SERVER_REQUEST_TYPE;
 
@@ -240,7 +241,13 @@ AttributionServerpTask
                 {
                     // Update the next sensor we expect for this train
                     attributionData->currentNode = sensorNode;
-                    VERIFY(SUCCESSFUL(TrackFindNextSensor(attributionData->currentNode, &attributionData->nextNode)));
+
+                    // Try to find where we expect the train to appear next
+                    if(!SUCCESSFUL(TrackFindNextSensor(attributionData->currentNode, &attributionData->nextNode)))
+                    {
+                        attributionData->nextNode = NULL;
+                        Log("Attribution server unable to find sensor after %s", sensorNode->name);
+                    }
 
                     // Let any awaiting tasks know about the sensor
                     INT currentTime = Time();
@@ -325,6 +332,20 @@ AttributionServerpTask
                 break;
             }
 
+            case GetTrackedTrainsRequest:
+            {
+                TRACKED_TRAINS trains;
+                trains.numTrackedTrains = numTrains;
+
+                for(UINT i = 0; i < numTrains; i++)
+                {
+                    trains.trains[i] = trackedTrains[i].train;
+                }
+
+                VERIFY(SUCCESSFUL(Reply(senderId, &trains, sizeof(trains))));
+                break;
+            }
+
             case NextExpectedNodeRequest:
             {
                 ATTRIBUTION_DATA* attributionData = AttributionServerpFindTrainById(trackedTrains, numTrains, request.train);
@@ -357,6 +378,27 @@ AttributionServerCreate
     )
 {
     VERIFY(SUCCESSFUL(Create(Priority24, AttributionServerpTask)));
+}
+
+INT
+AttributionServerGetTrackedTrains
+    (
+        OUT TRACKED_TRAINS* trackedTrains
+    )
+{
+    INT result = WhoIs(ATTRIBUTION_SERVER_NAME);
+
+    if(SUCCESSFUL(result))
+    {
+        INT attributionServerId = result;
+
+        ATTRIBUTION_SERVER_REQUEST request;
+        request.type = GetTrackedTrainsRequest;
+
+        result = Send(attributionServerId, &request, sizeof(request), trackedTrains, sizeof(*trackedTrains));
+    }
+
+    return result;
 }
 
 INT

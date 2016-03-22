@@ -6,7 +6,7 @@
 #include <rtosc/assert.h>
 #include <user/trains.h>
 
-#define TRAIN_NUMBER 63
+#define TRAIN_NUMBER 58
 
 static
 VOID
@@ -27,7 +27,7 @@ CalibrationpSteadyStateVelocityTask
     VERIFY(SUCCESSFUL(Delay(100)));
 
     // Have the train go
-    //UINT startTime = 0;
+    UINT startTime = 0;
     UCHAR currentSpeed = 14;
     VERIFY(SUCCESSFUL(TrainSetSpeed(TRAIN_NUMBER, currentSpeed)));
 
@@ -43,12 +43,10 @@ CalibrationpSteadyStateVelocityTask
 
         if('E' == data.sensor.module && 12 == data.sensor.number)
         {
-            //startTime = Time();
-            VERIFY(SUCCESSFUL(TrainSetSpeed(TRAIN_NUMBER, 0)));
+            startTime = Time();
         }
         else if('C' == data.sensor.module && 16 == data.sensor.number)
         {
-            /*
             UINT totalTime = Time() - startTime;
             Log("%d", totalTime);
 
@@ -63,7 +61,6 @@ CalibrationpSteadyStateVelocityTask
             }
 
             VERIFY(SUCCESSFUL(TrainSetSpeed(TRAIN_NUMBER, currentSpeed)));
-            */
         }
     }
 }

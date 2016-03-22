@@ -115,22 +115,30 @@ SchedulerpTask
                 TRAIN_SCHEDULE* trainSchedule = &trainSchedules[request.trainLocation.train];
                 VERIFY(SUCCESSFUL(AttributionServerNextExpectedNode(request.trainLocation.train, &trainSchedule->nextNode)));
 
-                // We may be in the middle of a reverse, in which case we may not be able to find a path to the next node
-                UINT distanceBetweenNodes;
-                if(SUCCESSFUL(TrackDistanceBetween(request.trainLocation.location.node, trainSchedule->nextNode, &distanceBetweenNodes)))
-                {
-                    if(request.trainLocation.velocity > SCHEDULER_TRAIN_NOT_MOVING_THRESHOLD)
+                // We may have reached the end of the track
+                if(NULL != trainSchedule->nextNode)
+                {                   
+                    // We may be in the middle of a reverse, in which case we may not be able to find a path to the next node
+                    UINT distanceBetweenNodes;
+                    if(SUCCESSFUL(TrackDistanceBetween(request.trainLocation.location.node, trainSchedule->nextNode, &distanceBetweenNodes)))
                     {
-                        // Due to sensor latency, we may believe we've gone past the sensor
-                        // If we think we've gone past the sensor, then just use our last arrival time guess
-                        if(distanceBetweenNodes > request.trainLocation.location.distancePastNode)
+                        if(request.trainLocation.velocity > SCHEDULER_TRAIN_NOT_MOVING_THRESHOLD)
                         {
-                            INT currentTime = Time();
-                            ASSERT(SUCCESSFUL(currentTime));
+                            // Due to sensor latency, we may believe we've gone past the sensor
+                            // If we think we've gone past the sensor, then just use our last arrival time guess
+                            if(distanceBetweenNodes > request.trainLocation.location.distancePastNode)
+                            {
+                                INT currentTime = Time();
+                                ASSERT(SUCCESSFUL(currentTime));
 
-                            UINT timeTillNextNode = (distanceBetweenNodes - request.trainLocation.location.distancePastNode) / request.trainLocation.velocity;
+                                UINT timeTillNextNode = (distanceBetweenNodes - request.trainLocation.location.distancePastNode) / request.trainLocation.velocity;
 
-                            trainSchedule->expectedArrivalTime = currentTime + timeTillNextNode;
+                                trainSchedule->expectedArrivalTime = currentTime + timeTillNextNode;
+                            }
+                        }
+                        else
+                        {
+                            trainSchedule->expectedArrivalTime = 0;
                         }
                     }
                     else

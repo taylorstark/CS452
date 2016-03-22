@@ -127,6 +127,18 @@ typedef struct _ATTRIBUTED_SENSOR
     SENSOR sensor;
 } ATTRIBUTED_SENSOR;
 
+typedef struct _TRACKED_TRAINS
+{
+    UCHAR trains[MAX_TRACKABLE_TRAINS];
+    UINT numTrackedTrains;
+} TRACKED_TRAINS;
+
+INT
+AttributionServerGetTrackedTrains
+    (
+        OUT TRACKED_TRAINS* trackedTrains
+    );
+
 INT
 AttributionServerNextExpectedNode
     (

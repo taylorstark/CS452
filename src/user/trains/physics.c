@@ -15,6 +15,16 @@ PhysicsInit
 {
     RtMemset(g_steadyStateVelocities, sizeof(g_steadyStateVelocities), 0);
 
+    g_steadyStateVelocities[58][6] = 2834;
+    g_steadyStateVelocities[58][7] = 3401;
+    g_steadyStateVelocities[58][8] = 3833;
+    g_steadyStateVelocities[58][9] = 4435;
+    g_steadyStateVelocities[58][10] = 4861;
+    g_steadyStateVelocities[58][11] = 5417;
+    g_steadyStateVelocities[58][12] = 5962;
+    g_steadyStateVelocities[58][13] = 5962;
+    g_steadyStateVelocities[58][14] = 5962;
+
     g_steadyStateVelocities[63][6] = 2834;
     g_steadyStateVelocities[63][7] = 3401;
     g_steadyStateVelocities[63][8] = 3833;
