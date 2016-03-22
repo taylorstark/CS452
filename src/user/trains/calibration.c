@@ -1,12 +1,12 @@
 #include "calibration.h"
 
-#include <bwio/bwio.h>
+#include "display.h"
 #include <rtkernel.h>
 #include <rtos.h>
 #include <rtosc/assert.h>
 #include <user/trains.h>
 
-#define TRAIN_NUMBER 69
+#define TRAIN_NUMBER 63
 
 static
 VOID
@@ -46,15 +46,15 @@ CalibrationpSteadyStateVelocityTask
             //startTime = Time();
             VERIFY(SUCCESSFUL(TrainSetSpeed(TRAIN_NUMBER, 0)));
         }
-        else if('C' == data.sensor.module && 6 == data.sensor.number)
+        else if('C' == data.sensor.module && 16 == data.sensor.number)
         {
             /*
             UINT totalTime = Time() - startTime;
-            bwprintf(BWCOM2, "%d\r\n", totalTime);
+            Log("%d", totalTime);
 
             if(currentSpeed == 5)
             {
-                bwprintf(BWCOM2, "\r\n");
+                Log("");
                 currentSpeed = 14;
             }
             else
