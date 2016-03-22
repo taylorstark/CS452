@@ -48,7 +48,7 @@ PhysicsInit
     RtMemset(g_decelerations, sizeof(g_decelerations), 0);
     g_decelerations[58] = 1430;
     g_decelerations[63] = 1635;
-    g_decelerations[69] = 1820;
+    g_decelerations[69] = 1850;
 }
 
 UINT
