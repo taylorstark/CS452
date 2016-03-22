@@ -105,19 +105,20 @@ StopServerpTask
                 if(NULL != stopLocation->node)
                 {
                     UINT distanceToTarget;
-                    VERIFY(SUCCESSFUL(TrackDistanceBetween(request.trainLocation.location.node, stopLocation->node, &distanceToTarget)));
-
-                    DIRECTION direction = directions[request.trainLocation.train];
-
-                    UINT remainingDistance = distanceToTarget - request.trainLocation.location.distancePastNode;
-                    UINT stoppingDistance = PhysicsStoppingDistance(request.trainLocation.train, request.trainLocation.velocity, direction);
-
-                    if(remainingDistance < stoppingDistance)
+                    if(SUCCESSFUL(TrackDistanceBetween(request.trainLocation.location.node, stopLocation->node, &distanceToTarget)))
                     {
-                        Log("Stopping %d at %s (currently %d away)", request.trainLocation.train, stopLocation->node->name, remainingDistance);
-                        VERIFY(SUCCESSFUL(TrainSetSpeed(request.trainLocation.train, 0)));
-                        RtMemset(stopLocation, sizeof(*stopLocation), 0);
-                    }
+                        DIRECTION direction = directions[request.trainLocation.train];
+
+                        UINT remainingDistance = distanceToTarget - request.trainLocation.location.distancePastNode;
+                        UINT stoppingDistance = PhysicsStoppingDistance(request.trainLocation.train, request.trainLocation.velocity, direction);
+
+                        if(remainingDistance < stoppingDistance)
+                        {
+                            Log("Stopping %d at %s (currently %d away)", request.trainLocation.train, stopLocation->node->name, remainingDistance);
+                            VERIFY(SUCCESSFUL(TrainSetSpeed(request.trainLocation.train, 0)));
+                            RtMemset(stopLocation, sizeof(*stopLocation), 0);
+                        }
+                    }                 
                 }
 
                 break;

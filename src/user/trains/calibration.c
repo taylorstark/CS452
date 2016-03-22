@@ -27,7 +27,7 @@ CalibrationpSteadyStateVelocityTask
     VERIFY(SUCCESSFUL(Delay(100)));
 
     // Have the train go
-    UINT startTime = 0;
+    //UINT startTime = 0;
     UCHAR currentSpeed = 14;
     VERIFY(SUCCESSFUL(TrainSetSpeed(TRAIN_NUMBER, currentSpeed)));
 
@@ -41,16 +41,18 @@ CalibrationpSteadyStateVelocityTask
             continue;
         }
 
-        if('E' == data.sensor.module && 12 == data.sensor.number)
+        if('C' == data.sensor.module && 13 == data.sensor.number)
         {
-            startTime = Time();
+            //startTime = Time();
+            VERIFY(SUCCESSFUL(TrainSetSpeed(TRAIN_NUMBER, 0)));
         }
-        else if('C' == data.sensor.module && 16 == data.sensor.number)
+        else if('E' == data.sensor.module && 7 == data.sensor.number)
         {
+            /*
             UINT totalTime = Time() - startTime;
             Log("%d", totalTime);
 
-            if(currentSpeed == 5)
+            if(currentSpeed == 6)
             {
                 Log("");
                 currentSpeed = 14;
@@ -61,6 +63,7 @@ CalibrationpSteadyStateVelocityTask
             }
 
             VERIFY(SUCCESSFUL(TrainSetSpeed(TRAIN_NUMBER, currentSpeed)));
+            */
         }
     }
 }
