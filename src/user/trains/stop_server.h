@@ -3,7 +3,7 @@
 #include <rt.h>
 
 VOID
-LocationServerCreateTask
+StopServerCreate
     (
         VOID
     );

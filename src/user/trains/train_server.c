@@ -1,6 +1,7 @@
 #include "train_server.h"
 
 #include <rtosc/assert.h>
+#include <rtosc/buffer.h>
 #include <rtosc/string.h>
 #include <rtkernel.h>
 #include <rtos.h>
@@ -22,7 +23,9 @@ typedef enum _TRAIN_REQUEST_TYPE
     SetSpeedRequest,
     GetSpeedRequest,
     ReverseRequest, 
-    ReverseStoppedRequest
+    ReverseStoppedRequest, 
+    AwaitSpeedChangeRequest, 
+    AwaitDirectionChangeRequest
 } TRAIN_REQUEST_TYPE;
 
 typedef struct _TRAIN_REQUEST
@@ -123,8 +126,7 @@ TrainpSetSpeed
         IN UCHAR speed
     )
 {
-    // Bytes must be sent in a weird order.
-    // Speed first, then train.
+    // Bytes must be sent in a weird order. Speed first, then train.
     return TrainpSendTwoByteCommand(device, speed, train);
 }
 
@@ -166,6 +168,44 @@ TrainpWorkerTask
 
 static
 VOID
+TrainpNotifySpeedChange
+    (
+        RT_CIRCULAR_BUFFER* awaitingSpeedChangeTasks, 
+        UCHAR train, 
+        UCHAR speed
+    )
+{
+    INT awaitingTask;
+    TRAIN_SPEED trainSpeed = { train, speed };
+
+    while(!RtCircularBufferIsEmpty(awaitingSpeedChangeTasks))
+    {
+        VERIFY(RT_SUCCESS(RtCircularBufferPeekAndPop(awaitingSpeedChangeTasks, &awaitingTask, sizeof(awaitingTask))));
+        VERIFY(SUCCESSFUL(Reply(awaitingTask, &trainSpeed, sizeof(trainSpeed))));
+    }
+}
+
+static
+VOID
+TrainpNotifyDirectionChange
+    (
+        RT_CIRCULAR_BUFFER* awaitingDirectionChangeTasks, 
+        UCHAR train, 
+        DIRECTION direction
+    )
+{
+    INT awaitingTask;
+    TRAIN_DIRECTION trainDirection = { train, direction };
+
+    while(!RtCircularBufferIsEmpty(awaitingDirectionChangeTasks))
+    {
+        VERIFY(RT_SUCCESS(RtCircularBufferPeekAndPop(awaitingDirectionChangeTasks, &awaitingTask, sizeof(awaitingTask))));
+        VERIFY(SUCCESSFUL(Reply(awaitingTask, &trainDirection, sizeof(trainDirection))));
+    }
+}
+
+static
+VOID
 TrainpTask
     (
         VOID
@@ -186,10 +226,10 @@ TrainpTask
 
     // Stop all known trains, in case any group forgot to turn them off
     VERIFY(SUCCESSFUL(TrainpSetSpeed(&com1, 58, 0)));
-    VERIFY(SUCCESSFUL(TrainpSetSpeed(&com1, 62, 0)));
     VERIFY(SUCCESSFUL(TrainpSetSpeed(&com1, 63, 0)));
     VERIFY(SUCCESSFUL(TrainpSetSpeed(&com1, 64, 0)));
     VERIFY(SUCCESSFUL(TrainpSetSpeed(&com1, 68, 0)));
+    VERIFY(SUCCESSFUL(TrainpSetSpeed(&com1, 69, 0)));
 
     // Create worker tasks
     INT workerTasks[MAX_TRACKABLE_TRAINS];
@@ -202,8 +242,20 @@ TrainpTask
 
     // Initialize variables
     BOOLEAN running = TRUE;
+
     UCHAR speeds[NUM_TRAINS];
     RtMemset(speeds, sizeof(speeds), 0);
+
+    DIRECTION directions[NUM_TRAINS];
+    RtMemset(directions, sizeof(directions), DirectionForward);
+
+    INT underlyingAwaitingSpeedChangeTasksBuffer[NUM_TASKS];
+    RT_CIRCULAR_BUFFER awaitingSpeedChangeTasks;
+    RtCircularBufferInit(&awaitingSpeedChangeTasks, underlyingAwaitingSpeedChangeTasksBuffer, sizeof(underlyingAwaitingSpeedChangeTasksBuffer));
+
+    INT underlyingAwaitingDirectionChangeTasksBuffer[NUM_TASKS];
+    RT_CIRCULAR_BUFFER awaitingDirectionChangeTasks;
+    RtCircularBufferInit(&awaitingDirectionChangeTasks, underlyingAwaitingDirectionChangeTasksBuffer, sizeof(underlyingAwaitingDirectionChangeTasksBuffer));
 
     while(running)
     {
@@ -235,8 +287,8 @@ TrainpTask
                 speeds[request.train - 1] = request.speed;
                 VERIFY(SUCCESSFUL(Reply(sender, NULL, 0)));
 
-                // Let the location server know the train's new speed
-                VERIFY(SUCCESSFUL(LocationServerUpdateTrainSpeed(request.train, request.speed)));
+                // Let tasks know about the train's new speed
+                TrainpNotifySpeedChange(&awaitingSpeedChangeTasks, request.train, request.speed);
                 break;
             }
 
@@ -249,9 +301,7 @@ TrainpTask
                 speeds[request.train - 1] = 0;
                 VERIFY(SUCCESSFUL(Reply(sender, NULL, 0)));
 
-                // Let the location server know that the train is stopping
-                VERIFY(SUCCESSFUL(LocationServerUpdateTrainSpeed(request.train, 0)));
-
+                // Schedule a task to reverse the train's direction after it has come to a stop
                 TRAIN_WORKER_REQUEST workerRequest;
                 workerRequest.delay = 100 * (oldSpeed / 3 + 1); // TODO - More accurate stopping time
                 workerRequest.request.type = ReverseStoppedRequest;
@@ -262,6 +312,9 @@ TrainpTask
                 nextWorkerTask++;
 
                 VERIFY(SUCCESSFUL(Send(nextWorkerTaskId, &workerRequest, sizeof(workerRequest), NULL, 0)));
+
+                // Let tasks know the train is stopping
+                TrainpNotifySpeedChange(&awaitingSpeedChangeTasks, request.train, 0);
                 break;
             }
 
@@ -271,11 +324,23 @@ TrainpTask
                 VERIFY(SUCCESSFUL(TrainpReverse(&com1, request.train)));
                 VERIFY(SUCCESSFUL(Reply(sender, NULL, 0)));
 
-                // Let the train server know about the new directions
-                VERIFY(SUCCESSFUL(LocationServerFlipTrainDirection(request.train)));
+                // Figure out which direction this train is now travelling
+                DIRECTION newDirection;
 
+                if(DirectionForward == directions[request.train - 1])
+                {
+                    newDirection = DirectionReverse;
+                }
+                else
+                {
+                    newDirection = DirectionForward;
+                }
+
+                directions[request.train - 1] = newDirection;
+
+                // Schedule a task to speed the train back up
                 TRAIN_WORKER_REQUEST workerRequest;
-                workerRequest.delay = 10; // TODO - Why do we need this?
+                workerRequest.delay = 5; // TODO - Why do we need this?
                 workerRequest.request.type = SetSpeedRequest;
                 workerRequest.request.train = request.train;
                 workerRequest.request.speed = request.speed;
@@ -284,6 +349,21 @@ TrainpTask
                 nextWorkerTask++;
                 
                 VERIFY(SUCCESSFUL(Send(nextWorkerTaskId, &workerRequest, sizeof(workerRequest), NULL, 0)));
+
+                // Let tasks know about the new direction
+                TrainpNotifyDirectionChange(&awaitingDirectionChangeTasks, request.train, newDirection);
+                break;
+            }
+
+            case AwaitSpeedChangeRequest:
+            {
+                VERIFY(RT_SUCCESS(RtCircularBufferPush(&awaitingSpeedChangeTasks, &sender, sizeof(sender))));
+                break;
+            }
+
+            case AwaitDirectionChangeRequest:
+            {
+                VERIFY(RT_SUCCESS(RtCircularBufferPush(&awaitingDirectionChangeTasks, &sender, sizeof(sender))));
                 break;
             }
 
@@ -293,7 +373,6 @@ TrainpTask
                 break;
             }
         }
-
     }
 
     // Stop any trains that are moving
@@ -356,6 +435,27 @@ TrainSetSpeed
 }
 
 INT
+TrainSpeedChangeAwait
+    (
+        OUT TRAIN_SPEED* trainSpeed
+    )
+{
+    INT result = WhoIs(TRAIN_SERVER_NAME);
+
+    if(SUCCESSFUL(result))
+    {
+        INT trainServerId = result;
+
+        TRAIN_REQUEST request;
+        request.type = AwaitSpeedChangeRequest;
+
+        result = Send(trainServerId, &request, sizeof(request), trainSpeed, sizeof(*trainSpeed));
+    }
+
+    return result;
+}
+
+INT
 TrainReverse
     (
         IN INT train
@@ -368,6 +468,27 @@ TrainReverse
 
     TRAIN_REQUEST request = { ReverseRequest, (UCHAR) train };
     return TrainpSendRequest(&request);
+}
+
+INT
+TrainDirectionChangeAwait
+    (
+        OUT TRAIN_DIRECTION* trainDirection
+    )
+{
+    INT result = WhoIs(TRAIN_SERVER_NAME);
+
+    if(SUCCESSFUL(result))
+    {
+        INT trainServerId = result;
+
+        TRAIN_REQUEST request;
+        request.type = AwaitDirectionChangeRequest;
+
+        result = Send(trainServerId, &request, sizeof(request), trainDirection, sizeof(*trainDirection));
+    }
+
+    return result;
 }
 
 VOID

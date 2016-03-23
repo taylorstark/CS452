@@ -12,6 +12,24 @@
 
 #define MAX_SPEED 14
 
+typedef struct _TRAIN_SPEED
+{
+    UCHAR train;
+    UCHAR speed;
+} TRAIN_SPEED;
+
+typedef enum _DIRECTION
+{
+    DirectionForward = 0, 
+    DirectionReverse
+} DIRECTION;
+
+typedef struct _TRAIN_DIRECTION
+{
+    UCHAR train;
+    DIRECTION direction;
+} TRAIN_DIRECTION;
+
 INT
 TrainGetSpeed
     (
@@ -27,9 +45,21 @@ TrainSetSpeed
     );
 
 INT
+TrainSpeedChangeAwait
+    (
+        OUT TRAIN_SPEED* trainSpeed
+    );
+
+INT
 TrainReverse
     (
         IN INT train
+    );
+
+INT
+TrainDirectionChangeAwait
+    (
+        OUT TRAIN_DIRECTION* trainDirection
     );
 
 /************************************
@@ -56,9 +86,17 @@ SwitchGetDirection
         OUT SWITCH_DIRECTION* direction
     );
 
+INT
+SwitchChangeAwait
+    (
+        OUT INT* sw
+    );
+
 /************************************
  *           SENSOR API             *
  ************************************/
+
+#define AVERAGE_SENSOR_LATENCY 7 // 70ms
 
 typedef struct _SENSOR
 {
@@ -72,16 +110,80 @@ typedef struct _SENSOR_DATA
     BOOLEAN isOn;
 } SENSOR_DATA;
 
-typedef struct _CHANGED_SENSORS
-{
-    SENSOR_DATA sensors[MAX_TRACKABLE_TRAINS];
-    UINT size;
-} CHANGED_SENSORS;
-
 INT
 SensorAwait
     (
-        OUT CHANGED_SENSORS* changedSensors
+        OUT SENSOR_DATA* sensorData
+    );
+
+/************************************
+ *         ATTRIBUTION API          *
+ ************************************/
+
+typedef struct _ATTRIBUTED_SENSOR
+{
+    UCHAR train;
+    INT timeTripped;
+    SENSOR sensor;
+} ATTRIBUTED_SENSOR;
+
+typedef struct _TRACKED_TRAINS
+{
+    UCHAR trains[MAX_TRACKABLE_TRAINS];
+    UINT numTrackedTrains;
+} TRACKED_TRAINS;
+
+INT
+AttributionServerGetTrackedTrains
+    (
+        OUT TRACKED_TRAINS* trackedTrains
+    );
+
+INT
+AttributionServerNextExpectedNode
+    (
+        IN UCHAR train,
+        OUT TRACK_NODE** nextExpectedNode
+    );
+
+INT
+AttributedSensorAwait
+    (
+        OUT ATTRIBUTED_SENSOR* attributedSensor
+    );
+
+/************************************
+ *          LOCATION API            *
+ ************************************/
+
+typedef struct _LOCATION
+{
+    TRACK_NODE* node;
+    UINT distancePastNode; // in micrometers
+} LOCATION;
+
+typedef struct _TRAIN_LOCATION
+{
+    UCHAR train;
+    LOCATION location;
+    UINT velocity; // in micrometers / tick
+} TRAIN_LOCATION;
+
+INT
+LocationAwait
+    (
+        OUT TRAIN_LOCATION* trainLocation
+    );
+
+/************************************
+ *          STOP API                *
+ ************************************/
+
+INT
+StopTrainAtLocation
+    (
+        IN UCHAR train,
+        IN LOCATION* location
     );
 
 /************************************
@@ -93,28 +195,10 @@ typedef enum _TRACK
     TrackB
 } TRACK;
 
-typedef enum _DIRECTION
-{
-    DirectionForward = 0, 
-    DirectionReverse
-} DIRECTION;
-
 VOID
 TrackInit
     (
         IN TRACK track
-    );
-
-TRACK_EDGE*
-TrackNextEdge
-    (
-        IN TRACK_NODE* node
-    );
-
-TRACK_NODE*
-TrackNextNode
-    (
-        IN TRACK_NODE* node
     );
 
 TRACK_NODE*
@@ -136,37 +220,6 @@ TrackDistanceBetween
         IN TRACK_NODE* n1,
         IN TRACK_NODE* n2,
         OUT UINT* distance
-    );
-
-INT
-TrackNumBranchesBetween
-    (
-        IN TRACK_NODE* n1,
-        IN TRACK_NODE* n2,
-        OUT UINT* numBranches
-    );
-
-UINT
-TrackGetCorrectiveTime
-    (
-        IN TRACK_NODE* node
-    );
-
-/************************************
- *          SCHEDULER API           *
- ************************************/
-
-INT
-SchedulerStopTrainAtSensor
-    (
-        IN UCHAR train,
-        IN SENSOR sensor
-    );
-
-INT
-SchedulerStopTrain
-    (
-        IN UCHAR train
     );
 
 /************************************

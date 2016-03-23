@@ -3,6 +3,7 @@
 #include "display.h"
 #include "location_server.h"
 #include <rtosc/assert.h>
+#include <rtosc/buffer.h>
 #include <rtkernel.h>
 #include <rtos.h>
 #include <user/trains.h>
@@ -17,7 +18,8 @@
 typedef enum _SWITCH_REQUEST_TYPE
 {
     SetDirectionRequest = 0, 
-    GetDirectionRequest
+    GetDirectionRequest, 
+    AwaitChangeRequest
 } SWITCH_REQUEST_TYPE;
 
 typedef struct _SWITCH_REQUEST
@@ -130,6 +132,10 @@ SwitchpTask
         VOID
     )
 {
+    INT underlyingAwaitingTasksBuffer[NUM_TASKS];
+    RT_CIRCULAR_BUFFER awaitingTasks;
+    RtCircularBufferInit(&awaitingTasks, underlyingAwaitingTasksBuffer, sizeof(underlyingAwaitingTasksBuffer));
+
     SWITCH_DIRECTION directions[NUM_SWITCHES];
 
     VERIFY(SUCCESSFUL(RegisterAs(SWITCH_SERVER_NAME)));
@@ -168,10 +174,17 @@ SwitchpTask
 
                 UINT switchIndex = SwitchpToIndex(request.sw);
                 directions[switchIndex] = request.direction;
-
                 VERIFY(SUCCESSFUL(Reply(sender, NULL, 0)));
-                VERIFY(SUCCESSFUL(LocationServerSwitchUpdated()));
+
                 ShowSwitchDirection(switchIndex, request.sw, request.direction);
+
+                INT awaitingTask;
+                while(!RtCircularBufferIsEmpty(&awaitingTasks))
+                {
+                    VERIFY(RT_SUCCESS(RtCircularBufferPeekAndPop(&awaitingTasks, &awaitingTask, sizeof(awaitingTask))));
+                    VERIFY(SUCCESSFUL(Reply(awaitingTask, &request.sw, sizeof(request.sw))));
+                }
+                
                 break;
             }
 
@@ -180,6 +193,12 @@ SwitchpTask
                 UINT switchIndex = SwitchpToIndex(request.sw);
                 SWITCH_DIRECTION direction = directions[switchIndex];
                 VERIFY(SUCCESSFUL(Reply(sender, &direction, sizeof(direction))));
+                break;
+            }
+
+            case AwaitChangeRequest:
+            {
+                VERIFY(RT_SUCCESS(RtCircularBufferPush(&awaitingTasks, &sender, sizeof(sender))));
                 break;
             }
 
@@ -211,7 +230,7 @@ SwitchSetDirection
     INT result;
     UINT index = SwitchpToIndex(sw);
 
-    if (index < NUM_SWITCHES)
+    if(index < NUM_SWITCHES)
     {
         result = WhoIs(SWITCH_SERVER_NAME);
 
@@ -241,7 +260,7 @@ SwitchGetDirection
     INT result;
     UINT index = SwitchpToIndex(sw);
 
-    if (index < NUM_SWITCHES)
+    if(index < NUM_SWITCHES)
     {
         result = WhoIs(SWITCH_SERVER_NAME);
 
@@ -256,6 +275,27 @@ SwitchGetDirection
     else
     {
         result = -1;
+    }
+
+    return result;
+}
+
+INT
+SwitchChangeAwait
+    (
+        OUT INT* sw
+    )
+{
+    INT result = WhoIs(SWITCH_SERVER_NAME);
+
+    if(SUCCESSFUL(result))
+    {
+        INT switchServerId = result;
+
+        SWITCH_REQUEST request;
+        request.type = AwaitChangeRequest;
+
+        result = Send(switchServerId, &request, sizeof(request), sw, sizeof(*sw));
     }
 
     return result;

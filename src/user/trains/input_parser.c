@@ -113,20 +113,13 @@ InputParserpParseCommand
                 {
                     if (RtStrIsWhitespace(buffer))
                     {
-                        SENSOR sensor = {arg2Buffer[0], arg3 };
-                        SchedulerStopTrainAtSensor(arg1, sensor);
+                        SENSOR sensor = { arg2Buffer[0], arg3 };
+                        TRACK_NODE* sensorNode = TrackFindSensor(&sensor);
+                        LOCATION location = { sensorNode, 0 };
+                        VERIFY(SUCCESSFUL(StopTrainAtLocation(arg1, &location)));
                     }
                 }
             }
-        }
-    }
-    else if (RtStrEqual(token, "stop-now"))
-    {
-
-        read = RtStrConsumeToken(&buffer, arg1Buffer, sizeof(arg1Buffer));
-        if (read && RT_SUCCESS(RtAtoi(arg1Buffer, &arg1)))
-        {
-            SchedulerStopTrain(arg1);
         }
     }
     else if (RtStrEqual(token, "q"))

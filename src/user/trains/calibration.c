@@ -1,12 +1,12 @@
 #include "calibration.h"
 
-#include <bwio/bwio.h>
+#include "display.h"
 #include <rtkernel.h>
 #include <rtos.h>
 #include <rtosc/assert.h>
 #include <user/trains.h>
 
-#define TRAIN_NUMBER 63
+#define TRAIN_NUMBER 58
 
 static
 VOID
@@ -16,7 +16,6 @@ CalibrationpSteadyStateVelocityTask
     )
 {
     // Setup the track
-    // This currently assumes track B
     VERIFY(SUCCESSFUL(SwitchSetDirection(15, SwitchStraight)));
     VERIFY(SUCCESSFUL(SwitchSetDirection(14, SwitchStraight)));
     VERIFY(SUCCESSFUL(SwitchSetDirection(9, SwitchStraight)));
@@ -28,47 +27,43 @@ CalibrationpSteadyStateVelocityTask
     VERIFY(SUCCESSFUL(Delay(100)));
 
     // Have the train go
-    UINT startTime = 0;
-    UINT currentSpeed = 14;
+    //UINT startTime = 0;
+    UCHAR currentSpeed = 14;
     VERIFY(SUCCESSFUL(TrainSetSpeed(TRAIN_NUMBER, currentSpeed)));
 
     while(1)
     {
-        CHANGED_SENSORS changedSensors;
-        VERIFY(SUCCESSFUL(SensorAwait(&changedSensors)));
+        SENSOR_DATA data;
+        VERIFY(SUCCESSFUL(SensorAwait(&data)));
 
-        for(UINT i = 0; i < changedSensors.size; i++)
+        if(!data.isOn)
         {
-            SENSOR_DATA* data = &changedSensors.sensors[i];
+            continue;
+        }
 
-            if(!data->isOn)
+        if('C' == data.sensor.module && 13 == data.sensor.number)
+        {
+            //startTime = Time();
+            VERIFY(SUCCESSFUL(TrainSetSpeed(TRAIN_NUMBER, 0)));
+        }
+        else if('E' == data.sensor.module && 7 == data.sensor.number)
+        {
+            /*
+            UINT totalTime = Time() - startTime;
+            Log("%d", totalTime);
+
+            if(currentSpeed == 6)
             {
-                continue;
+                Log("");
+                currentSpeed = 14;
+            }
+            else
+            {
+                currentSpeed = currentSpeed - 1;
             }
 
-            SENSOR sensor = data->sensor;
-
-            if('C' == sensor.module && 13 == sensor.number)
-            {
-                startTime = Time();
-            }
-            else if('E' == sensor.module && 7 == sensor.number)
-            {
-                UINT totalTime = Time() - startTime;
-                bwprintf(BWCOM2, "%d\r\n", totalTime);
-
-                if(currentSpeed == 5)
-                {
-                    bwprintf(BWCOM2, "\r\n");
-                    currentSpeed = 14;
-                }
-                else
-                {
-                    currentSpeed = currentSpeed - 1;
-                }
-
-                VERIFY(SUCCESSFUL(TrainSetSpeed(TRAIN_NUMBER, currentSpeed)));
-            }
+            VERIFY(SUCCESSFUL(TrainSetSpeed(TRAIN_NUMBER, currentSpeed)));
+            */
         }
     }
 }
@@ -79,5 +74,5 @@ CalibrationCreateTask
         VOID
     )
 {
-    VERIFY(SUCCESSFUL(Create(LowestUserPriority, CalibrationpSteadyStateVelocityTask)));
+    VERIFY(SUCCESSFUL(Create(HighestUserPriority, CalibrationpSteadyStateVelocityTask)));
 }

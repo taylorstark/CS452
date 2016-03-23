@@ -1,6 +1,7 @@
 #pragma once
 
 #include <rt.h>
+#include <user/trains.h>
 
 VOID
 PhysicsInit
@@ -15,16 +16,10 @@ PhysicsSteadyStateVelocity
         IN UCHAR speed
     );
 
-INT
-PhysicsSteadyStateAcceleration
+UINT
+PhysicsStoppingDistance
     (
-        IN UCHAR train,
-        IN UCHAR speed
-    );
-
-INT
-PhysicsSteadyStateDeceleration
-    (
-        IN UCHAR train,
-        IN UCHAR speed
+        IN UCHAR train, 
+        IN UINT velocity, 
+        IN DIRECTION direction
     );
