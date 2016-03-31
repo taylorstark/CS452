@@ -1,7 +1,6 @@
 # CS452 Kernel
 
 * Taylor Stark
-* Victor Lai
 
 ## Builds
 
