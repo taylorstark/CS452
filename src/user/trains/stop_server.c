@@ -108,11 +108,13 @@ StopServerpTask
                     if(SUCCESSFUL(TrackDistanceBetween(request.trainLocation.location.node, stopLocation->node, &distanceToTarget)))
                     {
                         DIRECTION direction = directions[request.trainLocation.train];
-
-                        UINT remainingDistance = distanceToTarget - request.trainLocation.location.distancePastNode;
                         UINT stoppingDistance = PhysicsStoppingDistance(request.trainLocation.train, request.trainLocation.velocity, direction);
 
-                        if(remainingDistance < stoppingDistance)
+                        UINT distanceTillStopIsExecuted = request.trainLocation.velocity * AVERAGE_TRAIN_COMMAND_LATENCY;
+                        UINT remainingDistance = distanceToTarget - request.trainLocation.location.distancePastNode - distanceTillStopIsExecuted;
+
+                        // Check for underflow and check if we should stop
+                        if(remainingDistance < distanceToTarget && remainingDistance < stoppingDistance)
                         {
                             Log("Stopping %d at %s (currently %d away)", request.trainLocation.train, stopLocation->node->name, remainingDistance);
                             VERIFY(SUCCESSFUL(TrainSetSpeed(request.trainLocation.train, 0)));

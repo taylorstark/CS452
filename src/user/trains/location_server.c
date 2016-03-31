@@ -38,11 +38,21 @@ typedef struct _LOCATION_SERVER_REQUEST
     };
 } LOCATION_SERVER_REQUEST;
 
+typedef enum _ACCELERATION_TYPE
+{
+    ACCELERATING = 0, 
+    DECELERATING, 
+    STOPPING
+} ACCELERATION_TYPE;
+
 typedef struct _TRAIN_DATA
 {
     UCHAR train;
     LOCATION location;
     UINT velocity; // in micrometers / tick
+    ACCELERATION_TYPE accelerationType;
+    UINT accelerationTicks;
+    INT accelerationStartTime;
     INT lastArrivalTime;
     INT lastTimeLocationUpdated;
 } TRAIN_DATA;
@@ -212,6 +222,17 @@ LocationServerpFindTrainById
 }
 
 static
+inline
+BOOLEAN
+LocationServerpIsAccelerating
+    (
+        IN TRAIN_DATA* trainData
+    )
+{
+    return trainData->accelerationTicks > 0;
+}
+
+static
 VOID
 LocationServerpTask
     (
@@ -264,7 +285,36 @@ LocationServerpTask
 
                         if(diff > 0)
                         {
-                            // TODO - Take in to account acceleration
+                            // Handle acceleration
+                            if(trainData->accelerationTicks > 0 && currentTime >= trainData->accelerationStartTime)
+                            {
+                                UINT timeSpentAccelerating = min(diff, trainData->accelerationTicks);
+                                trainData->accelerationTicks -= timeSpentAccelerating;
+
+                                UINT dv = timeSpentAccelerating * PhysicsAcceleration(trainData->train);
+
+                                if(ACCELERATING == trainData->accelerationType)
+                                {
+                                    trainData->velocity += dv;
+                                }
+                                else
+                                {
+                                    if(dv < trainData->velocity)
+                                    {
+                                        trainData->velocity -= dv;
+
+                                        if(STOPPING == trainData->accelerationType && 0 == trainData->accelerationTicks)
+                                        {
+                                            trainData->velocity = 0;
+                                            Log("Stopped %d %s %d", trainData->train, trainData->location.node->name, trainData->location.distancePastNode);
+                                        }
+                                    }
+                                    else
+                                    {
+                                        trainData->velocity = 0;
+                                    }
+                                }
+                            }
 
                             // Update the train's location
                             trainData->location.distancePastNode += diff * trainData->velocity;
@@ -298,7 +348,7 @@ LocationServerpTask
                     INT currentTime = Time();
                     ASSERT(SUCCESSFUL(currentTime));
 
-                    if(NULL != trainData->location.node)
+                    if(NULL != trainData->location.node && !LocationServerpIsAccelerating(trainData))
                     {
                         UINT dx;
                         if(SUCCESSFUL(TrackDistanceBetween(trainData->location.node, sensorNode, &dx)))
@@ -338,8 +388,41 @@ LocationServerpTask
                     trainData->train = request.trainSpeed.train;
                 }
 
-                // TODO - This is a bad approximation (not taking in to account acceleration)
-                trainData->velocity = PhysicsSteadyStateVelocity(request.trainSpeed.train, request.trainSpeed.speed);
+                // Figure out how long it will take to reach the new velocity
+                // TODO: This is a pretty bad approximation
+                UINT targetVelocity = PhysicsSteadyStateVelocity(request.trainSpeed.train, request.trainSpeed.speed);
+                UINT acceleration = PhysicsAcceleration(request.trainSpeed.train);
+
+                INT currentTime = Time();
+                ASSERT(SUCCESSFUL(currentTime));
+
+                trainData->accelerationStartTime = currentTime + AVERAGE_TRAIN_COMMAND_LATENCY;
+
+                if(0 == targetVelocity)
+                {
+                    trainData->accelerationType = STOPPING;
+                    trainData->accelerationTicks = trainData->velocity / acceleration;
+                }
+                else
+                {
+                    if(targetVelocity > trainData->velocity)
+                    {
+                        // Accelerating from stop takes a pretty long time
+                        if(0 == trainData->velocity)
+                        {
+                            acceleration *= 75;
+                            acceleration /= 100;
+                        }
+                        
+                        trainData->accelerationType = ACCELERATING;
+                        trainData->accelerationTicks = (targetVelocity - trainData->velocity) / acceleration;
+                    }
+                    else
+                    {
+                        trainData->accelerationType = DECELERATING;
+                        trainData->accelerationTicks = (trainData->velocity - targetVelocity) / acceleration;
+                    }
+                }
 
                 break;
             }

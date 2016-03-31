@@ -17,6 +17,12 @@ PhysicsSteadyStateVelocity
     );
 
 UINT
+PhysicsAcceleration
+    (
+        IN UCHAR train
+    );
+
+UINT
 PhysicsStoppingDistance
     (
         IN UCHAR train, 

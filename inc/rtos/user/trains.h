@@ -11,6 +11,7 @@
  ************************************/
 
 #define MAX_SPEED 14
+#define AVERAGE_TRAIN_COMMAND_LATENCY 15 // 150 ms
 
 typedef struct _TRAIN_SPEED
 {
