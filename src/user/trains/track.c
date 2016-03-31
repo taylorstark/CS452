@@ -71,6 +71,43 @@ TrackNextNode
     return TrackNextEdge(node)->dest;
 }
 
+static
+INT
+TrackFindNextNodeOfType
+    (
+        IN TRACK_NODE* node, 
+        IN NODE_TYPE type, 
+        OUT TRACK_NODE** nextNode
+    )
+{
+    TRACK_NODE* iterator = TrackNextNode(node);
+
+    while(type != iterator->type && NODE_EXIT != iterator->type)
+    {
+        iterator = TrackNextNode(iterator);
+    }
+
+    if(type == iterator->type)
+    {
+        *nextNode = iterator;
+        return 0;
+    }
+    else
+    {
+        return -1;
+    }
+}
+
+INT
+TrackFindNextBranch
+    (
+        IN TRACK_NODE* node, 
+        OUT TRACK_NODE** nextBranch
+    )
+{
+    return TrackFindNextNodeOfType(node, NODE_BRANCH, nextBranch);
+}
+
 INT
 TrackFindNextSensor
     (
@@ -78,22 +115,7 @@ TrackFindNextSensor
         OUT TRACK_NODE** nextSensor
     )
 {
-    TRACK_NODE* iterator = TrackNextNode(node);
-
-    while(NODE_SENSOR != iterator->type && NODE_EXIT != iterator->type)
-    {
-        iterator = TrackNextNode(iterator);
-    }
-
-    if(NODE_SENSOR == iterator->type)
-    {
-        *nextSensor = iterator;
-        return 0;
-    }
-    else
-    {
-        return -1;
-    }
+    return TrackFindNextNodeOfType(node, NODE_SENSOR, nextSensor);
 }
 
 INT

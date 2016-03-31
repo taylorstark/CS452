@@ -319,8 +319,27 @@ AttributionServerpTask
 
                 for(UINT i = 0; i < numTrains; i++)
                 {
-                    // TODO - Only do this if the train is before a switch
-                    VERIFY(SUCCESSFUL(TrackFindNextSensor(trackedTrains[i].currentNode, &trackedTrains[i].nextNode)));
+                    TRACK_NODE* nextBranch;
+                    VERIFY(SUCCESSFUL(TrackFindNextBranch(trackedTrains[i].currentNode, &nextBranch)));
+
+                    // Check if the switch that was just changed is between the current and next nodes
+                    if(nextBranch->num == request.sw)
+                    {
+                        UINT distanceTillNextBranch;
+                        VERIFY(SUCCESSFUL(TrackDistanceBetween(trackedTrains[i].currentNode, nextBranch, &distanceTillNextBranch)));
+
+                        LOCATION location;
+                        VERIFY(SUCCESSFUL(GetLocation(trackedTrains[i].train, &location)));
+
+                        ASSERT(trackedTrains[i].currentNode == location.node);
+
+                        // Figure out if the train is still before the branch (it could be before, on, or past the branch)
+                        if(location.distancePastNode < distanceTillNextBranch)
+                        {
+                            // Train is before the branch, so the next sensor we expect to be tripped has changed
+                            VERIFY(SUCCESSFUL(TrackFindNextSensor(trackedTrains[i].currentNode, &trackedTrains[i].nextNode)));
+                        }
+                    }
                 }
 
                 break;

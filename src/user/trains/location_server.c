@@ -15,14 +15,14 @@
 
 #define LOCATION_SERVER_NOTIFIER_UPDATE_INTERVAL 2 // 20 ms
 #define LOCATION_SERVER_ALPHA 5
-#define LOCATION_SERVER_AVERAGE_SENSOR_LATENCY 70 // 70 ms
 
 typedef enum _LOCATION_SERVER_REQUEST_TYPE
 {
     VelocityUpdateRequest = 0,
     AttributedSensorUpdateRequest,
     SpeedUpdateRequest,
-    DirectionUpdateRequest
+    DirectionUpdateRequest, 
+    GetLocationRequest
 } LOCATION_SERVER_REQUEST_TYPE;
 
 typedef struct _LOCATION_SERVER_REQUEST
@@ -31,6 +31,7 @@ typedef struct _LOCATION_SERVER_REQUEST
 
     union
     {
+        UCHAR train;
         ATTRIBUTED_SENSOR attributedSensor;
         TRAIN_SPEED trainSpeed;
         TRAIN_DIRECTION trainDirection;
@@ -300,15 +301,15 @@ LocationServerpTask
                     if(NULL != trainData->location.node)
                     {
                         UINT dx;
-                        VERIFY(SUCCESSFUL(TrackDistanceBetween(trainData->location.node, sensorNode, &dx)));
+                        if(SUCCESSFUL(TrackDistanceBetween(trainData->location.node, sensorNode, &dx)))
+                        {
+                            UINT dt = request.attributedSensor.timeTripped - trainData->lastArrivalTime;
+                            UINT v = dx / dt;
 
-                        UINT dt = request.attributedSensor.timeTripped - trainData->lastArrivalTime;
-
-                        UINT v = dx / dt;
-
-                        UINT newVelocityFactor = LOCATION_SERVER_ALPHA * v;
-                        UINT oldVelocityFactor = (100 - LOCATION_SERVER_ALPHA) * trainData->velocity;
-                        trainData->velocity = (newVelocityFactor + oldVelocityFactor) / 100;
+                            UINT newVelocityFactor = LOCATION_SERVER_ALPHA * v;
+                            UINT oldVelocityFactor = (100 - LOCATION_SERVER_ALPHA) * trainData->velocity;
+                            trainData->velocity = (newVelocityFactor + oldVelocityFactor) / 100;
+                        }                        
                     }
 
                     // Update the train's location
@@ -368,6 +369,22 @@ LocationServerpTask
                 break;
             }
 
+            case GetLocationRequest:
+            {
+                TRAIN_DATA* trainData = LocationServerpFindTrainById(trackedTrains, numTrackedTrains, request.train);
+
+                if(NULL != trainData)
+                {
+                    VERIFY(SUCCESSFUL(Reply(senderId, &trainData->location, sizeof(trainData->location))));
+                }
+                else
+                {
+                    ASSERT(FALSE);
+                }
+
+                break;
+            }
+
             default:
             {
                 ASSERT(FALSE);
@@ -384,6 +401,29 @@ LocationServerCreateTask
     )
 {
     VERIFY(SUCCESSFUL(Create(Priority23, LocationServerpTask)));
+}
+
+INT
+GetLocation
+    (
+        IN UCHAR train, 
+        OUT LOCATION* location
+    )
+{
+    INT result = WhoIs(LOCATION_SERVER_NAME);
+
+    if(SUCCESSFUL(result))
+    {
+        INT locationServerId = result;
+
+        LOCATION_SERVER_REQUEST request;
+        request.type = GetLocationRequest;
+        request.train = train;
+
+        result = Send(locationServerId, &request, sizeof(request), location, sizeof(*location));
+    }
+
+    return result;
 }
 
 INT

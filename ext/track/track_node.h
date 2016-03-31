@@ -9,6 +9,8 @@ typedef enum {
   NODE_EXIT,
 } node_type;
 
+typedef node_type NODE_TYPE;
+
 #define DIR_AHEAD 0
 #define DIR_STRAIGHT 0
 #define DIR_CURVED 1

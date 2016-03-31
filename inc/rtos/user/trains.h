@@ -170,6 +170,13 @@ typedef struct _TRAIN_LOCATION
 } TRAIN_LOCATION;
 
 INT
+GetLocation
+    (
+        IN UCHAR train, 
+        OUT LOCATION* location
+    );
+
+INT
 LocationAwait
     (
         OUT TRAIN_LOCATION* trainLocation
@@ -205,6 +212,13 @@ TRACK_NODE*
 TrackFindSensor
     (
         IN SENSOR* sensor
+    );
+
+INT
+TrackFindNextBranch
+    (
+        IN TRACK_NODE* node, 
+        OUT TRACK_NODE** nextBranch
     );
 
 INT
