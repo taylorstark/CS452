@@ -132,7 +132,7 @@ StopServerpTask
                         // Check for underflow and check if we should stop
                         if(remainingDistance < distanceToTarget && remainingDistance < stoppingDistance)
                         {
-                            Log("Stopping %d at %s (currently %d away) %d %d %d", request.trainLocation.train, stopLocation->node->name, remainingDistance, request.trainLocation.acceleration, timeAccelerating, accelerationDistance);
+                            Log("Stopping %d at %s (Requires %d to stop and is %d away)", request.trainLocation.train, stopLocation->node->name, stoppingDistance, remainingDistance);
                             VERIFY(SUCCESSFUL(TrainSetSpeed(request.trainLocation.train, 0)));
                             RtMemset(stopLocation, sizeof(*stopLocation), 0);
                         }
