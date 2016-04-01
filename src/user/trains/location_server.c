@@ -244,7 +244,8 @@ LocationServerpAcceleration
 
     if(ACCELERATING_FROM_STOP == trainData->accelerationType)
     {
-        acceleration /= 2;
+        acceleration *= 40;
+        acceleration /= 100;
     }
 
     return acceleration;
