@@ -110,13 +110,29 @@ StopServerpTask
                         DIRECTION direction = directions[request.trainLocation.train];
                         UINT stoppingDistance = PhysicsStoppingDistance(request.trainLocation.train, request.trainLocation.velocity, direction);
 
-                        UINT distanceTillStopIsExecuted = request.trainLocation.velocity * AVERAGE_TRAIN_COMMAND_LATENCY;
-                        UINT remainingDistance = distanceToTarget - request.trainLocation.location.distancePastNode - distanceTillStopIsExecuted;
+                        UINT timeAccelerating = min(request.trainLocation.accelerationTicks, AVERAGE_TRAIN_COMMAND_LATENCY);
+                        UINT distanceTravelledDueToAcceleration = 0;
+
+                        for(UINT i = 0; i < timeAccelerating; i++)
+                        {
+                            for(UINT j = i; j < timeAccelerating; j++)
+                            {
+                                distanceTravelledDueToAcceleration += request.trainLocation.acceleration;
+                            }
+                        }
+
+                        UINT accelerationDistance = (request.trainLocation.velocity * timeAccelerating) + PhysicsCorrectAccelerationUnits(distanceTravelledDueToAcceleration);
+
+                        UINT timeSteadyState = AVERAGE_TRAIN_COMMAND_LATENCY - timeAccelerating;
+                        UINT endingVelocity = (request.trainLocation.velocity + PhysicsCorrectAccelerationUnits(timeAccelerating * request.trainLocation.acceleration));
+                        UINT steadyStateDistance = endingVelocity * timeSteadyState;
+
+                        UINT remainingDistance = distanceToTarget - request.trainLocation.location.distancePastNode - accelerationDistance - steadyStateDistance;
 
                         // Check for underflow and check if we should stop
                         if(remainingDistance < distanceToTarget && remainingDistance < stoppingDistance)
                         {
-                            Log("Stopping %d at %s (currently %d away)", request.trainLocation.train, stopLocation->node->name, remainingDistance);
+                            Log("Stopping %d at %s (currently %d away) %d %d %d", request.trainLocation.train, stopLocation->node->name, remainingDistance, request.trainLocation.acceleration, timeAccelerating, accelerationDistance);
                             VERIFY(SUCCESSFUL(TrainSetSpeed(request.trainLocation.train, 0)));
                             RtMemset(stopLocation, sizeof(*stopLocation), 0);
                         }

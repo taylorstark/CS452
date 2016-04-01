@@ -168,6 +168,8 @@ typedef struct _TRAIN_LOCATION
     UCHAR train;
     LOCATION location;
     UINT velocity; // in micrometers / tick
+    UINT acceleration;
+    UINT accelerationTicks;
 } TRAIN_LOCATION;
 
 INT

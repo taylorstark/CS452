@@ -244,7 +244,7 @@ LocationServerpAcceleration
 
     if(ACCELERATING_FROM_STOP == trainData->accelerationType)
     {
-        acceleration *= 40;
+        acceleration *= 55;
         acceleration /= 100;
     }
 
@@ -352,6 +352,8 @@ LocationServerpTask
                             request.trainLocation.train = trainData->train;
                             request.trainLocation.location = trainData->location;
                             request.trainLocation.velocity = trainData->velocity;
+                            request.trainLocation.acceleration = LocationServerpAcceleration(trainData);
+                            request.trainLocation.accelerationTicks = trainData->accelerationTicks;
 
                             VERIFY(SUCCESSFUL(Send(locationServerRegistrarId, &request, sizeof(request), NULL, 0)));
                         }
