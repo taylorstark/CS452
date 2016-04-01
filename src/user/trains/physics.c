@@ -48,7 +48,7 @@ PhysicsInit
     RtMemset(g_accelerations, sizeof(g_accelerations), 0);
     g_accelerations[58] = 1550;
     g_accelerations[63] = 1870;
-    g_accelerations[69] = 2020;
+    g_accelerations[69] = 2015;
 }
 
 UINT
@@ -81,7 +81,25 @@ PhysicsAcceleration
         ASSERT(FALSE);
     }
 
-    return (acceleration % 100) > 50 ? (acceleration / 100) + 1 : (acceleration / 100);
+    return acceleration;
+}
+
+INT
+PhysicsCorrectAccelerationUnits
+    (
+        IN INT val
+    )
+{
+    return val / 100;
+}
+
+INT
+PhysicsCorrectAccelerationUnitsInverse
+    (
+        IN INT val
+    )
+{
+    return val * 100;
 }
 
 static
@@ -103,7 +121,7 @@ PhysicsStoppingDistance
         IN DIRECTION direction
     )
 {
-    UINT stoppingDistance = (velocity * velocity * 50) / (g_accelerations[train]);
+    UINT stoppingDistance = PhysicsCorrectAccelerationUnitsInverse(velocity * velocity) / (2 * g_accelerations[train]);
 
     return stoppingDistance + PhysicspDistanceFromPickupToFrontOfTrain(direction);
 }

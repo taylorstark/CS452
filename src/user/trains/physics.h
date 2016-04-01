@@ -22,6 +22,18 @@ PhysicsAcceleration
         IN UCHAR train
     );
 
+INT
+PhysicsCorrectAccelerationUnits
+    (
+        IN INT val
+    );
+
+INT
+PhysicsCorrectAccelerationUnitsInverse
+    (
+        IN INT val
+    );
+
 UINT
 PhysicsStoppingDistance
     (

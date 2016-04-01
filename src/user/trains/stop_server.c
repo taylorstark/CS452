@@ -120,7 +120,7 @@ StopServerpTask
                             VERIFY(SUCCESSFUL(TrainSetSpeed(request.trainLocation.train, 0)));
                             RtMemset(stopLocation, sizeof(*stopLocation), 0);
                         }
-                    }                 
+                    }
                 }
 
                 break;

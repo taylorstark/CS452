@@ -233,6 +233,18 @@ LocationServerpIsAccelerating
 }
 
 static
+inline
+BOOLEAN
+LocationServerpHasBeenFound
+    (
+        IN TRAIN_DATA* trainData
+    )
+{
+    // If we haven't matched this train to a sensor node, then it hasn't been found
+    return NULL != trainData->location.node;
+}
+
+static
 VOID
 LocationServerpTask
     (
@@ -277,49 +289,49 @@ LocationServerpTask
                 for(UINT i = 0; i < numTrackedTrains; i++)
                 {
                     TRAIN_DATA* trainData = &trackedTrains[i];
+                    INT diff = currentTime - trainData->lastTimeLocationUpdated;
 
-                    // Do we know where this train is yet?
-                    if(NULL != trainData->location.node)
+                    if(diff > 0)
                     {
-                        INT diff = currentTime - trainData->lastTimeLocationUpdated;
-
-                        if(diff > 0)
+                        // Handle acceleration
+                        if(trainData->accelerationTicks > 0 && currentTime >= trainData->accelerationStartTime)
                         {
-                            // Handle acceleration
-                            if(trainData->accelerationTicks > 0 && currentTime >= trainData->accelerationStartTime)
+                            UINT timeSpentAccelerating = min(diff, trainData->accelerationTicks);
+                            trainData->accelerationTicks -= timeSpentAccelerating;
+
+                            UINT dv = PhysicsCorrectAccelerationUnits(timeSpentAccelerating * PhysicsAcceleration(trainData->train));
+
+                            if(ACCELERATING == trainData->accelerationType)
                             {
-                                UINT timeSpentAccelerating = min(diff, trainData->accelerationTicks);
-                                trainData->accelerationTicks -= timeSpentAccelerating;
-
-                                UINT dv = timeSpentAccelerating * PhysicsAcceleration(trainData->train);
-
-                                if(ACCELERATING == trainData->accelerationType)
+                                trainData->velocity += dv;
+                            }
+                            else
+                            {
+                                if(dv < trainData->velocity)
                                 {
-                                    trainData->velocity += dv;
+                                    trainData->velocity -= dv;
+
+                                    if(STOPPING == trainData->accelerationType && 0 == trainData->accelerationTicks)
+                                    {
+                                        trainData->velocity = 0;
+                                        Log("Stopped %d %s %d", trainData->train, trainData->location.node->name, trainData->location.distancePastNode);
+                                    }
                                 }
                                 else
                                 {
-                                    if(dv < trainData->velocity)
-                                    {
-                                        trainData->velocity -= dv;
-
-                                        if(STOPPING == trainData->accelerationType && 0 == trainData->accelerationTicks)
-                                        {
-                                            trainData->velocity = 0;
-                                            Log("Stopped %d %s %d", trainData->train, trainData->location.node->name, trainData->location.distancePastNode);
-                                        }
-                                    }
-                                    else
-                                    {
-                                        trainData->velocity = 0;
-                                    }
+                                    trainData->velocity = 0;
                                 }
                             }
-
+                        }
+                        
+                        // The train may not have been found yet, in which case we're just 
+                        // updating its velocity with its acceleration
+                        if(LocationServerpHasBeenFound(trainData))
+                        {
                             // Update the train's location
                             trainData->location.distancePastNode += diff * trainData->velocity;
                             trainData->lastTimeLocationUpdated = currentTime;
-                            
+
                             // Send the updated location to the registrar to send to any registrants
                             request.trainLocation.train = trainData->train;
                             request.trainLocation.location = trainData->location;
@@ -344,11 +356,11 @@ LocationServerpTask
 
                 if(NULL != trainData)
                 {
-                    // Update the velocity if we have a point of reference
                     INT currentTime = Time();
                     ASSERT(SUCCESSFUL(currentTime));
 
-                    if(NULL != trainData->location.node && !LocationServerpIsAccelerating(trainData))
+                    // Update the velocity if we have a point of reference
+                    if(LocationServerpHasBeenFound(trainData) && !LocationServerpIsAccelerating(trainData))
                     {
                         UINT dx;
                         if(SUCCESSFUL(TrackDistanceBetween(trainData->location.node, sensorNode, &dx)))
@@ -388,39 +400,49 @@ LocationServerpTask
                     trainData->train = request.trainSpeed.train;
                 }
 
+                // Get the current time
+                INT currentTime = Time();
+                ASSERT(SUCCESSFUL(currentTime));
+
+                // If this is the first time we've seen the train, use the current time as a 
+                // reference point when performing acceleration calculations
+                if(0 == trainData->lastTimeLocationUpdated)
+                {
+                    trainData->lastTimeLocationUpdated = currentTime;
+                }
+
                 // Figure out how long it will take to reach the new velocity
                 // TODO: This is a pretty bad approximation
                 UINT targetVelocity = PhysicsSteadyStateVelocity(request.trainSpeed.train, request.trainSpeed.speed);
                 UINT acceleration = PhysicsAcceleration(request.trainSpeed.train);
-
-                INT currentTime = Time();
-                ASSERT(SUCCESSFUL(currentTime));
 
                 trainData->accelerationStartTime = currentTime + AVERAGE_TRAIN_COMMAND_LATENCY;
 
                 if(0 == targetVelocity)
                 {
                     trainData->accelerationType = STOPPING;
-                    trainData->accelerationTicks = trainData->velocity / acceleration;
+                    trainData->accelerationTicks = PhysicsCorrectAccelerationUnitsInverse(trainData->velocity) / acceleration;
                 }
                 else
                 {
                     if(targetVelocity > trainData->velocity)
                     {
                         // Accelerating from stop takes a pretty long time
+                        /*
                         if(0 == trainData->velocity)
                         {
                             acceleration *= 75;
                             acceleration /= 100;
                         }
+                        */
                         
                         trainData->accelerationType = ACCELERATING;
-                        trainData->accelerationTicks = (targetVelocity - trainData->velocity) / acceleration;
+                        trainData->accelerationTicks = PhysicsCorrectAccelerationUnitsInverse(targetVelocity - trainData->velocity) / acceleration;
                     }
                     else
                     {
                         trainData->accelerationType = DECELERATING;
-                        trainData->accelerationTicks = (trainData->velocity - targetVelocity) / acceleration;
+                        trainData->accelerationTicks = PhysicsCorrectAccelerationUnitsInverse(trainData->velocity - targetVelocity) / acceleration;
                     }
                 }
 
