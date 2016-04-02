@@ -5,6 +5,7 @@
 #include "attribution_server.h"
 #include "calibration.h"
 #include "clock.h"
+#include "destination_server.h"
 #include "display.h"
 #include "input_parser.h"
 #include "location_server.h"
@@ -44,6 +45,7 @@ InitTrainTasks
     SafetyCreateTask();
     StopServerCreate();
     SchedulerCreateTask();
+    DestinationServerCreate();
 
     //CalibrationCreateTask();
 }

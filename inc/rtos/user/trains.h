@@ -186,14 +186,20 @@ LocationAwait
     );
 
 /************************************
- *          STOP API                *
+ *       DESTINATION API            *
  ************************************/
 
 INT
-StopTrainAtLocation
+TrainDestinationOnce
     (
-        IN UCHAR train,
+        IN UCHAR train, 
         IN LOCATION* location
+    );
+
+INT
+TrainDestinationForever
+    (
+        IN UCHAR train
     );
 
 /************************************

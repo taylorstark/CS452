@@ -4,6 +4,7 @@ set(SRC_USER
     ${CMAKE_CURRENT_SOURCE_DIR}/attribution_server.c
     ${CMAKE_CURRENT_SOURCE_DIR}/calibration.c
     ${CMAKE_CURRENT_SOURCE_DIR}/clock.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/destination_server.c
     ${CMAKE_CURRENT_SOURCE_DIR}/display.c
     ${CMAKE_CURRENT_SOURCE_DIR}/input_parser.c
     ${CMAKE_CURRENT_SOURCE_DIR}/location_server.c
