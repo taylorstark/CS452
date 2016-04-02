@@ -11,6 +11,7 @@
 #include "location_server.h"
 #include "performance.h"
 #include "physics.h"
+#include "route_server.h"
 #include "safety.h"
 #include "scheduler.h"
 #include "sensor_server.h"
@@ -45,6 +46,7 @@ InitTrainTasks
     SafetyCreateTask();
     StopServerCreate();
     SchedulerCreateTask();
+    RouteServerCreate();
     DestinationServerCreate();
 
     //CalibrationCreateTask();

@@ -24,6 +24,15 @@ TrackInit
 }
 
 TRACK_NODE*
+GetTrack
+    (
+        VOID
+    )
+{
+    return g_trackNodes;
+}
+
+TRACK_NODE*
 TrackFindSensor
     (
         IN SENSOR* sensor
@@ -34,7 +43,6 @@ TrackFindSensor
     return &g_trackNodes[index];
 }
 
-inline
 TRACK_EDGE*
 TrackNextEdge
     (
@@ -61,7 +69,6 @@ TrackNextEdge
     }
 }
 
-inline
 TRACK_NODE*
 TrackNextNode
     (

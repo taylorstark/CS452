@@ -1,6 +1,7 @@
 #pragma once
 
 #include <rt.h>
+#include <track/track_data.h>
 #include <track/track_node.h>
 
 #define MAX_TRAINS 80
@@ -203,6 +204,22 @@ TrainDestinationForever
     );
 
 /************************************
+ *          ROUTE API               *
+ ************************************/
+
+typedef struct _PATH_NODE
+{
+    TRACK_NODE* node;
+    UINT direction;
+} PATH_NODE;
+
+typedef struct _PATH
+{
+    PATH_NODE nodes[TRACK_MAX];
+    UINT numNodes;
+} PATH;
+
+/************************************
  *            TRACK API             *
  ************************************/
 typedef enum _TRACK
@@ -218,9 +235,27 @@ TrackInit
     );
 
 TRACK_NODE*
+GetTrack
+    (
+        VOID
+    );
+
+TRACK_NODE*
 TrackFindSensor
     (
         IN SENSOR* sensor
+    );
+
+TRACK_EDGE*
+TrackNextEdge
+    (
+        IN TRACK_NODE* node
+    );
+
+TRACK_NODE*
+TrackNextNode
+    (
+        IN TRACK_NODE* node
     );
 
 INT
