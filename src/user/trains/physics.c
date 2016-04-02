@@ -102,6 +102,33 @@ PhysicsCorrectAccelerationUnitsInverse
     return val * 100;
 }
 
+UINT
+PhysicsDistanceTravelled
+    (
+        IN UINT velocity, 
+        IN UINT acceleration, 
+        IN UINT accelerationTime, 
+        IN UINT totalTime
+    )
+{
+    accelerationTime = min(accelerationTime, totalTime);
+
+    UINT distanceTravelledDueToAcceleration = 0;
+
+    for(UINT i = 0; i < accelerationTime; i++)
+    {
+        for(UINT j = i; j < accelerationTime; j++)
+        {
+            distanceTravelledDueToAcceleration += acceleration;
+        }
+    }
+
+    UINT accelerationDistance = (velocity * accelerationTime) + PhysicsCorrectAccelerationUnits(distanceTravelledDueToAcceleration);
+    UINT steadyStateDistance = PhysicsEndingVelocity(velocity, acceleration, accelerationTime) * (totalTime - accelerationTime);
+
+    return accelerationDistance + steadyStateDistance;
+}
+
 static
 inline
 UINT
@@ -126,3 +153,13 @@ PhysicsStoppingDistance
     return stoppingDistance + PhysicspDistanceFromPickupToFrontOfTrain(direction);
 }
 
+UINT
+PhysicsEndingVelocity
+    (
+        IN UINT startingVelocity, 
+        IN UINT acceleration, 
+        IN UINT accelerationTime
+    )
+{
+    return startingVelocity + PhysicsCorrectAccelerationUnits(accelerationTime * acceleration);
+}

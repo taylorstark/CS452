@@ -108,26 +108,16 @@ StopServerpTask
                     if(SUCCESSFUL(TrackDistanceBetween(request.trainLocation.location.node, stopLocation->node, &distanceToTarget)))
                     {
                         DIRECTION direction = directions[request.trainLocation.train];
-                        UINT stoppingDistance = PhysicsStoppingDistance(request.trainLocation.train, request.trainLocation.velocity, direction);
+                        UINT endingVelocity = PhysicsEndingVelocity(request.trainLocation.velocity, 
+                                                                    request.trainLocation.acceleration,
+                                                                    min(request.trainLocation.accelerationTicks, AVERAGE_TRAIN_COMMAND_LATENCY));
+                        UINT stoppingDistance = PhysicsStoppingDistance(request.trainLocation.train, endingVelocity, direction);
 
-                        UINT timeAccelerating = min(request.trainLocation.accelerationTicks, AVERAGE_TRAIN_COMMAND_LATENCY);
-                        UINT distanceTravelledDueToAcceleration = 0;
-
-                        for(UINT i = 0; i < timeAccelerating; i++)
-                        {
-                            for(UINT j = i; j < timeAccelerating; j++)
-                            {
-                                distanceTravelledDueToAcceleration += request.trainLocation.acceleration;
-                            }
-                        }
-
-                        UINT accelerationDistance = (request.trainLocation.velocity * timeAccelerating) + PhysicsCorrectAccelerationUnits(distanceTravelledDueToAcceleration);
-
-                        UINT timeSteadyState = AVERAGE_TRAIN_COMMAND_LATENCY - timeAccelerating;
-                        UINT endingVelocity = (request.trainLocation.velocity + PhysicsCorrectAccelerationUnits(timeAccelerating * request.trainLocation.acceleration));
-                        UINT steadyStateDistance = endingVelocity * timeSteadyState;
-
-                        UINT remainingDistance = distanceToTarget - request.trainLocation.location.distancePastNode - accelerationDistance - steadyStateDistance;
+                        UINT distanceTravelledBeforeCommandExecuted = PhysicsDistanceTravelled(request.trainLocation.velocity, 
+                                                                                               request.trainLocation.acceleration, 
+                                                                                               request.trainLocation.accelerationTicks, 
+                                                                                               AVERAGE_TRAIN_COMMAND_LATENCY);
+                        UINT remainingDistance = distanceToTarget - request.trainLocation.location.distancePastNode - distanceTravelledBeforeCommandExecuted;
 
                         // Check for underflow and check if we should stop
                         if(remainingDistance < distanceToTarget && remainingDistance < stoppingDistance)

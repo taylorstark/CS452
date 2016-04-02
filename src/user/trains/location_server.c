@@ -244,8 +244,7 @@ LocationServerpAcceleration
 
     if(ACCELERATING_FROM_STOP == trainData->accelerationType)
     {
-        acceleration *= 55;
-        acceleration /= 100;
+        acceleration /= 2;
     }
 
     return acceleration;
@@ -378,7 +377,9 @@ LocationServerpTask
                     ASSERT(SUCCESSFUL(currentTime));
 
                     // Update the velocity if we have a point of reference
-                    if(LocationServerpHasBeenFound(trainData) && !LocationServerpIsAccelerating(trainData))
+                    // Race condition when decelerating.  We could think we've stopped, but the train may still be moving very slowly.
+                    // This would cause us to update the train's velocity, but we think we've stopped so we don't want to do that.
+                    if(LocationServerpHasBeenFound(trainData) && !LocationServerpIsAccelerating(trainData) && trainData->velocity > 0)
                     {
                         UINT dx;
                         if(SUCCESSFUL(TrackDistanceBetween(trainData->location.node, sensorNode, &dx)))
@@ -389,7 +390,7 @@ LocationServerpTask
                             UINT newVelocityFactor = LOCATION_SERVER_ALPHA * v;
                             UINT oldVelocityFactor = (100 - LOCATION_SERVER_ALPHA) * trainData->velocity;
                             trainData->velocity = (newVelocityFactor + oldVelocityFactor) / 100;
-                        }                        
+                        }
                     }
 
                     // Update the train's location

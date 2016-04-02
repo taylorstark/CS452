@@ -35,9 +35,26 @@ PhysicsCorrectAccelerationUnitsInverse
     );
 
 UINT
+PhysicsDistanceTravelled
+    (
+        IN UINT velocity, 
+        IN UINT acceleration, 
+        IN UINT accelerationTime, 
+        IN UINT totalTime
+    );
+
+UINT
 PhysicsStoppingDistance
     (
         IN UCHAR train, 
         IN UINT velocity, 
         IN DIRECTION direction
+    );
+
+UINT
+PhysicsEndingVelocity
+    (
+        IN UINT startingVelocity, 
+        IN UINT acceleration, 
+        IN UINT accelerationTime
     );
