@@ -1,6 +1,7 @@
 #include "route_server.h"
 
 #include "display.h"
+#include "physics.h"
 #include <rtosc/assert.h>
 #include <rtosc/string.h>
 #include <rtkernel.h>
@@ -9,11 +10,13 @@
 #include <user/trains.h>
 
 #define ROUTE_SERVER_NAME "route"
+#define REVERSE_PENALTY 400000 // 40cm
 #define INFINITY 0xFFFFFFFF
 
 typedef enum _ROUTE_REQUEST_TYPE
 {
     LocationUpdateRequest = 0, 
+    DirectionUpdateRequest, 
     SetDestinationRequest
 } ROUTE_REQUEST_TYPE;
 
@@ -30,6 +33,7 @@ typedef struct _ROUTE_REQUEST
     union
     {
         TRAIN_LOCATION trainLocation;
+        TRAIN_DIRECTION trainDirection;
         ROUTE_TO_DESTINATION_REQUEST routeToDestination;
     };
 } ROUTE_REQUEST;
@@ -58,6 +62,26 @@ RouteServerpLocationNotifierTask
     while(1)
     {
         VERIFY(SUCCESSFUL(LocationAwait(&request.trainLocation)));
+        VERIFY(SUCCESSFUL(Send(routeServerId, &request, sizeof(request), NULL, 0)));
+    }
+}
+
+static
+VOID
+RouteServerpDirectionChangeNotifierTask
+    (
+        VOID
+    )
+{
+    INT routeServerId = MyParentTid();
+    ASSERT(SUCCESSFUL(routeServerId));
+
+    ROUTE_REQUEST request;
+    request.type = DirectionUpdateRequest;
+
+    while(1)
+    {
+        VERIFY(SUCCESSFUL(TrainDirectionChangeAwait(&request.trainDirection)));
         VERIFY(SUCCESSFUL(Send(routeServerId, &request, sizeof(request), NULL, 0)));
     }
 }
@@ -238,6 +262,54 @@ RouteServerpFindRoute
 }
 
 static
+PATH*
+RouteServerpSelectOptimalPath
+    (
+        IN TRACK_NODE* graph, 
+        IN TRAIN_LOCATION* currentLocation, 
+        IN TRACK_NODE* dest, 
+        IN DIRECTION direction, 
+        IN PATH* forwardPath, 
+        IN PATH* reversePath
+    )
+{
+    BOOLEAN hasForwardPath = SUCCESSFUL(RouteServerpFindRoute(graph, currentLocation->location.node, dest, forwardPath));
+    BOOLEAN hasReversePath = SUCCESSFUL(RouteServerpFindRoute(graph, currentLocation->location.node->reverse, dest, reversePath));
+
+    if(hasForwardPath && hasReversePath)
+    {
+        // Compute how long it would take to stop and perform a reverse
+        UINT endingVelocity = PhysicsEndingVelocity(currentLocation->velocity, 
+                                                    currentLocation->acceleration,
+                                                    min(currentLocation->accelerationTicks, AVERAGE_TRAIN_COMMAND_LATENCY));
+        UINT stoppingDistance = PhysicsStoppingDistance(currentLocation->train, endingVelocity, direction);
+        UINT reversePathWeight = reversePath->totalDistance + (stoppingDistance * 2) + REVERSE_PENALTY;
+
+        // Compare the cost of going forward against the cost of going in reverse
+        if(reversePathWeight < forwardPath->totalDistance)
+        {
+            return reversePath;
+        }
+        else
+        {
+            return forwardPath;
+        }
+    }
+    else if(hasForwardPath)
+    {
+        return forwardPath;
+    }
+    else if(hasReversePath)
+    {
+        return reversePath;
+    }
+    else
+    {
+        return NULL;
+    }
+}
+
+static
 ROUTE_DATA*
 RouteServerpFindTrainById
     (
@@ -280,8 +352,12 @@ RouteServerpTask
     ROUTE_DATA trackedTrains[MAX_TRACKABLE_TRAINS];
     RtMemset(trackedTrains, sizeof(trackedTrains), 0);
 
+    DIRECTION directions[MAX_TRAINS];
+    RtMemset(directions, sizeof(directions), DirectionForward);
+
     VERIFY(SUCCESSFUL(RegisterAs(ROUTE_SERVER_NAME)));
     VERIFY(SUCCESSFUL(Create(HighestUserPriority, RouteServerpLocationNotifierTask)));
+    VERIFY(SUCCESSFUL(Create(HighestUserPriority, RouteServerpDirectionChangeNotifierTask)));
 
     while(1)
     {
@@ -306,30 +382,35 @@ RouteServerpTask
 
                     if(RouteServerpHasDestination(trainData))
                     {
+                        DIRECTION direction = directions[request.trainLocation.train];
                         PATH forwardPath;
                         PATH reversePath;
 
-                        BOOLEAN hasForwardPath = SUCCESSFUL(RouteServerpFindRoute(graph, 
-                                                                                  trainData->currentLocation.location.node, 
-                                                                                  trainData->destination.node, 
-                                                                                  &forwardPath));
-                        BOOLEAN hasReversePath = SUCCESSFUL(RouteServerpFindRoute(graph, 
-                                                                                  trainData->currentLocation.location.node->reverse, 
-                                                                                  trainData->destination.node, 
-                                                                                  &reversePath));
+                        PATH* optimalPath = RouteServerpSelectOptimalPath(graph, 
+                                                                          &request.trainLocation, 
+                                                                          trainData->destination.node, 
+                                                                          direction, 
+                                                                          &forwardPath, 
+                                                                          &reversePath);
 
-                        if(hasForwardPath)
+                        if(NULL != optimalPath)
                         {
-                            //Log("F %d", forwardPath.numNodes);
+                            Log("%d", optimalPath->numNodes);
                         }
-
-                        if(hasReversePath)
+                        else
                         {
-                            //Log("R %d", reversePath.numNodes);
+                            Log("NO PATH");
                         }
                     }
                 }
 
+                break;
+            }
+
+            case DirectionUpdateRequest:
+            {
+                directions[request.trainDirection.train] = request.trainDirection.direction;
+                VERIFY(SUCCESSFUL(Reply(senderId, NULL, 0)));
                 break;
             }
 
