@@ -3,6 +3,7 @@
 #include "display.h"
 #include "physics.h"
 #include <rtosc/assert.h>
+#include <rtosc/buffer.h>
 #include <rtosc/string.h>
 #include <rtkernel.h>
 #include <rtos.h>
@@ -16,7 +17,8 @@ typedef enum _ROUTE_REQUEST_TYPE
 {
     LocationUpdateRequest = 0, 
     DirectionUpdateRequest, 
-    SetDestinationRequest
+    SetDestinationRequest, 
+    AwaitRouteRequest
 } ROUTE_REQUEST_TYPE;
 
 typedef struct _ROUTE_TO_DESTINATION_REQUEST
@@ -297,7 +299,8 @@ RouteServerpFixupReversePath
     )
 {
     PATH fixedPath;
-    fixedPath.nodes[0] = reversePath->nodes[0];
+    fixedPath.nodes[0].node = currentLocation->location.node;
+    fixedPath.nodes[0].direction = RouteServerpCalculateDirectionTaken(fixedPath.nodes[0].node);
     fixedPath.numNodes = 1;
     fixedPath.totalDistance = 0;
 
@@ -447,6 +450,10 @@ RouteServerpTask
     DIRECTION directions[MAX_TRAINS];
     RtMemset(directions, sizeof(directions), DirectionForward);
 
+    INT underlyingAwaitingTasksBuffer[NUM_TASKS];
+    RT_CIRCULAR_BUFFER awaitingTasks;
+    RtCircularBufferInit(&awaitingTasks, underlyingAwaitingTasksBuffer, sizeof(underlyingAwaitingTasksBuffer));
+
     VERIFY(SUCCESSFUL(RegisterAs(ROUTE_SERVER_NAME)));
     VERIFY(SUCCESSFUL(Create(HighestUserPriority, RouteServerpLocationNotifierTask)));
     VERIFY(SUCCESSFUL(Create(HighestUserPriority, RouteServerpDirectionChangeNotifierTask)));
@@ -487,7 +494,16 @@ RouteServerpTask
 
                         if(NULL != optimalPath)
                         {
-                            Log("%d", optimalPath->numNodes);
+                            ROUTE route;
+                            RtMemcpy(&route.trainLocation, &request.trainLocation, sizeof(route.trainLocation));
+                            RtMemcpy(&route.path, optimalPath, sizeof(route.path));
+
+                            INT awaitingTask;
+                            while(!RtCircularBufferIsEmpty(&awaitingTasks))
+                            {
+                                VERIFY(RT_SUCCESS(RtCircularBufferPeekAndPop(&awaitingTasks, &awaitingTask, sizeof(awaitingTask))));
+                                VERIFY(SUCCESSFUL(Reply(awaitingTask, &route, sizeof(route))));
+                            }
                         }
                         else
                         {
@@ -518,6 +534,12 @@ RouteServerpTask
 
                 trainData->destination = request.routeToDestination.destination;
                 VERIFY(SUCCESSFUL(Reply(senderId, NULL, 0)));
+                break;
+            }
+
+            case AwaitRouteRequest:
+            {
+                VERIFY(RT_SUCCESS(RtCircularBufferPush(&awaitingTasks, &senderId, sizeof(senderId))));
                 break;
             }
 
@@ -558,6 +580,27 @@ RouteTrainToDestination
         request.routeToDestination.destination = *destination;
 
         result = Send(routeServerId, &request, sizeof(request), NULL, 0);
+    }
+
+    return result;
+}
+
+INT
+RouteAwait
+    (
+        OUT ROUTE* route
+    )
+{
+    INT result = WhoIs(ROUTE_SERVER_NAME);
+
+    if(SUCCESSFUL(result))
+    {
+        INT routeServerId = result;
+
+        ROUTE_REQUEST request;
+        request.type = AwaitRouteRequest;
+
+        result = Send(routeServerId, &request, sizeof(request), route, sizeof(*route));
     }
 
     return result;

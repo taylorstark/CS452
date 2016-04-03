@@ -44,9 +44,9 @@ InitTrainTasks
     AttributionServerCreate();
     LocationServerCreateTask();
     SafetyCreateTask();
-    StopServerCreate();
     SchedulerCreateTask();
     RouteServerCreate();
+    StopServerCreate();
     DestinationServerCreate();
 
     //CalibrationCreateTask();

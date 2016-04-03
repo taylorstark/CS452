@@ -12,10 +12,16 @@
 
 typedef enum _STOP_SERVER_REQUEST_TYPE
 {
-    LocationUpdateRequest = 0,
+    RouteUpdateRequest = 0,
     DirectionUpdateRequest,
     StopTrainAtLocationRequest
 } STOP_SERVER_REQUEST_TYPE;
+
+typedef struct _STOP_AT_LOCATION_REQUEST
+{
+    UCHAR train;
+    LOCATION location;
+} STOP_AT_LOCATION_REQUEST;
 
 typedef struct _STOP_SERVER_REQUEST
 {
@@ -23,14 +29,15 @@ typedef struct _STOP_SERVER_REQUEST
 
     union
     {
-        TRAIN_LOCATION trainLocation;
+        ROUTE route;
         TRAIN_DIRECTION trainDirection;
+        STOP_AT_LOCATION_REQUEST stopAtLocation;
     };
 } STOP_SERVER_REQUEST;
 
 static
 VOID
-StopServerpLocationNotifierTask
+StopServerpRouteNotifierTask
     (
         VOID
     )
@@ -39,11 +46,11 @@ StopServerpLocationNotifierTask
     ASSERT(SUCCESSFUL(stopServerId));
 
     STOP_SERVER_REQUEST request;
-    request.type = LocationUpdateRequest;
+    request.type = RouteUpdateRequest;
 
     while(1)
     {
-        VERIFY(SUCCESSFUL(LocationAwait(&request.trainLocation)));
+        VERIFY(SUCCESSFUL(RouteAwait(&request.route)));
         VERIFY(SUCCESSFUL(Send(stopServerId, &request, sizeof(request), NULL, 0)));
     }
 }
@@ -82,7 +89,7 @@ StopServerpTask
     RtMemset(directions, sizeof(directions), DirectionForward);
 
     VERIFY(SUCCESSFUL(RegisterAs(STOP_SERVER_NAME)));
-    VERIFY(SUCCESSFUL(Create(HighestUserPriority, StopServerpLocationNotifierTask)));
+    VERIFY(SUCCESSFUL(Create(HighestUserPriority, StopServerpRouteNotifierTask)));
     VERIFY(SUCCESSFUL(Create(HighestUserPriority, StopServerpDirectionChangeNotifierTask)));
 
     while(1)
@@ -94,11 +101,48 @@ StopServerpTask
 
         switch(request.type)
         {
-            case LocationUpdateRequest:
+            case RouteUpdateRequest:
             {
                 // Unblock the notifier ASAP
                 VERIFY(SUCCESSFUL(Reply(senderId, NULL, 0)));
 
+                // Use the updated location to see if we need to stop the train yet
+                LOCATION* stopLocation = &stopLocations[request.route.trainLocation.train];
+
+                if(NULL != stopLocation->node)
+                {
+                    // Calculate how long it will take the train to stop
+                    DIRECTION direction = directions[request.route.trainLocation.train];
+                    UINT endingVelocity = PhysicsEndingVelocity(request.route.trainLocation.velocity, 
+                                                                request.route.trainLocation.acceleration,
+                                                                min(request.route.trainLocation.accelerationTicks, AVERAGE_TRAIN_COMMAND_LATENCY));
+                    UINT stoppingDistance = PhysicsStoppingDistance(request.route.trainLocation.train, endingVelocity, direction);
+
+                    // Calculate the distance between the train and the desired stop location
+                    UINT distanceTravelledBeforeCommandExecuted = PhysicsDistanceTravelled(request.route.trainLocation.velocity, 
+                                                                                           request.route.trainLocation.acceleration, 
+                                                                                           request.route.trainLocation.accelerationTicks, 
+                                                                                           AVERAGE_TRAIN_COMMAND_LATENCY);
+                    UINT remainingDistance = request.route.path.totalDistance - request.route.trainLocation.location.distancePastNode - distanceTravelledBeforeCommandExecuted;
+
+                    // Check for underflow and check if we should stop
+                    if(remainingDistance < request.route.path.totalDistance && remainingDistance < stoppingDistance)
+                    {
+                        VERIFY(SUCCESSFUL(TrainSetSpeed(request.route.trainLocation.train, 0)));
+
+                        Log("Stopping %d at %s (Requires %d to stop and is %d away)", 
+                            request.route.trainLocation.train, 
+                            stopLocation->node->name, 
+                            stoppingDistance, 
+                            remainingDistance);
+
+                        RtMemset(stopLocation, sizeof(*stopLocation), 0);
+                    }
+                }
+
+                break;
+
+                /*
                 // Use the updated location to see if we need to stop the train yet
                 LOCATION* stopLocation = &stopLocations[request.trainLocation.train];
 
@@ -128,8 +172,7 @@ StopServerpTask
                         }
                     }
                 }
-
-                break;
+                */
             }
             
             case DirectionUpdateRequest:
@@ -141,7 +184,7 @@ StopServerpTask
 
             case StopTrainAtLocationRequest:
             {
-                stopLocations[request.trainLocation.train] = request.trainLocation.location;
+                stopLocations[request.stopAtLocation.train] = request.stopAtLocation.location;
                 VERIFY(SUCCESSFUL(Reply(senderId, NULL, 0)));
                 break;
             }
@@ -180,9 +223,8 @@ StopTrainAtLocation
 
         STOP_SERVER_REQUEST request;
         request.type = StopTrainAtLocationRequest;
-        request.trainLocation.train = train;
-        request.trainLocation.location = *location;
-        request.trainLocation.velocity = 0;
+        request.stopAtLocation.train = train;
+        request.stopAtLocation.location = *location;
 
         result = Send(stopServerId, &request, sizeof(request), NULL, 0);
     }

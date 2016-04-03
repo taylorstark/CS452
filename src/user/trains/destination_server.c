@@ -121,6 +121,7 @@ DestinationServerpRouteToDestination
     )
 {
     VERIFY(SUCCESSFUL(RouteTrainToDestination(train, location)));
+    VERIFY(SUCCESSFUL(StopTrainAtLocation(train, location)));
 }
 
 static

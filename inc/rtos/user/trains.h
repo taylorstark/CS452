@@ -221,11 +221,34 @@ typedef struct _PATH
     BOOLEAN performsReverse;
 } PATH;
 
+typedef struct _ROUTE
+{
+    TRAIN_LOCATION trainLocation;
+    PATH path;
+} ROUTE;
+
 INT
 RouteTrainToDestination
     (
         IN UCHAR train, 
         IN LOCATION* destination
+    );
+
+INT
+RouteAwait
+    (
+        OUT ROUTE* route
+    );
+
+/************************************
+ *          STOP API                *
+ ************************************/
+
+INT
+StopTrainAtLocation
+    (
+        IN UCHAR train,
+        IN LOCATION* location
     );
 
 /************************************
