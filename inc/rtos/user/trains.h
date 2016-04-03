@@ -218,6 +218,7 @@ typedef struct _PATH
     PATH_NODE nodes[TRACK_MAX];
     UINT numNodes;
     UINT totalDistance;
+    BOOLEAN performsReverse;
 } PATH;
 
 INT

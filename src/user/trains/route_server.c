@@ -261,6 +261,96 @@ RouteServerpFindRoute
 }
 
 static
+UINT
+RouteServerpCalculateDirectionTaken
+    (
+        IN TRACK_NODE* node
+    )
+{
+    if(NODE_BRANCH == node->type)
+    {
+        SWITCH_DIRECTION direction;
+        VERIFY(SUCCESSFUL(SwitchGetDirection(node->num, &direction)));
+
+        if(SwitchStraight == direction)
+        {
+            return DIR_STRAIGHT;
+        }
+        else
+        {
+            return DIR_CURVED;
+        }
+    }
+    else
+    {
+        return DIR_AHEAD;
+    }
+}
+
+static
+VOID
+RouteServerpFixupReversePath
+    (
+        IN TRAIN_LOCATION* currentLocation, 
+        IN DIRECTION direction, 
+        IN PATH* reversePath
+    )
+{
+    PATH fixedPath;
+    fixedPath.nodes[0] = reversePath->nodes[0];
+    fixedPath.numNodes = 1;
+    fixedPath.totalDistance = 0;
+
+    // Compute how long it would take to stop and perform a reverse
+    UINT endingVelocity = PhysicsEndingVelocity(currentLocation->velocity, 
+                                                currentLocation->acceleration,
+                                                min(currentLocation->accelerationTicks, AVERAGE_TRAIN_COMMAND_LATENCY));
+    INT stoppingDistance = PhysicsStoppingDistance(currentLocation->train, endingVelocity, direction);
+
+    // Compute the nodes travelled while performing a stop
+    TRACK_NODE* iterator = currentLocation->location.node;
+
+    while(NODE_EXIT != iterator->type && stoppingDistance > 0)
+    {
+        UINT direction = RouteServerpCalculateDirectionTaken(iterator);
+        TRACK_EDGE* edgeTaken = &iterator->edge[direction];
+        UINT distanceTaken = edgeTaken->dist * 1000; // Perform unit conversions
+
+        stoppingDistance -= distanceTaken;
+        iterator = edgeTaken->dest;
+
+        fixedPath.nodes[fixedPath.numNodes].node = iterator;
+        fixedPath.nodes[fixedPath.numNodes].direction = direction;
+        fixedPath.numNodes++;
+        fixedPath.totalDistance += distanceTaken;
+    }
+
+    // Compute the nodes travelled while performing the reverse
+    fixedPath.totalDistance *= 2;
+
+    for(INT i = fixedPath.numNodes - 2; i >= 0; i--)
+    {
+        TRACK_NODE* reversedNode = fixedPath.nodes[i].node->reverse;
+        UINT direction = RouteServerpCalculateDirectionTaken(reversedNode);
+
+        fixedPath.nodes[fixedPath.numNodes].node = reversedNode;
+        fixedPath.nodes[fixedPath.numNodes].direction = direction;
+        fixedPath.numNodes++;
+    }
+
+    // Copy over the rest of the path, skipping over the initial node (we've already added it)
+    fixedPath.totalDistance += reversePath->totalDistance;
+
+    for(UINT i = 1; i < reversePath->numNodes; i++)
+    {
+        fixedPath.nodes[fixedPath.numNodes++] = reversePath->nodes[i];
+    }
+
+    // And now copy the fixed up path to the original path
+    RtMemcpy(reversePath, &fixedPath, sizeof(fixedPath));
+}
+
+static
 PATH*
 RouteServerpSelectOptimalPath
     (
@@ -275,14 +365,17 @@ RouteServerpSelectOptimalPath
     BOOLEAN hasForwardPath = SUCCESSFUL(RouteServerpFindRoute(graph, currentLocation->location.node, dest, forwardPath));
     BOOLEAN hasReversePath = SUCCESSFUL(RouteServerpFindRoute(graph, currentLocation->location.node->reverse, dest, reversePath));
 
+    if(hasReversePath && reversePath->numNodes > 1)
+    {
+        RouteServerpFixupReversePath(currentLocation, direction, reversePath);
+    }
+    
+    forwardPath->performsReverse = FALSE;
+    reversePath->performsReverse = TRUE;
+
     if(hasForwardPath && hasReversePath)
     {
-        // Compute how long it would take to stop and perform a reverse
-        UINT endingVelocity = PhysicsEndingVelocity(currentLocation->velocity, 
-                                                    currentLocation->acceleration,
-                                                    min(currentLocation->accelerationTicks, AVERAGE_TRAIN_COMMAND_LATENCY));
-        UINT stoppingDistance = PhysicsStoppingDistance(currentLocation->train, endingVelocity, direction);
-        UINT reversePathWeight = reversePath->totalDistance + (stoppingDistance * 2) + (endingVelocity * 3);
+        UINT reversePathWeight = reversePath->totalDistance + (currentLocation->velocity * 4);
 
         // Compare the cost of going forward against the cost of going in reverse
         if(reversePathWeight < forwardPath->totalDistance)
