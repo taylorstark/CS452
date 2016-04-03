@@ -238,27 +238,6 @@ RouteServerpFindRoute
 }
 
 static
-TRACK_NODE*
-RouteServerpFindActualLocation
-    (
-        IN LOCATION* location
-    )
-{
-    UINT distancePastNode = location->distancePastNode / 1000; // need to convert units
-    TRACK_NODE* actualLocation = location->node;
-    TRACK_EDGE* nextEdge = TrackNextEdge(actualLocation);
-
-    while(NODE_BRANCH != actualLocation->type && distancePastNode > nextEdge->dist)
-    {
-        distancePastNode -= nextEdge->dist;
-        actualLocation = nextEdge->dest;
-        nextEdge = TrackNextEdge(actualLocation);
-    }
-
-    return actualLocation;
-}
-
-static
 ROUTE_DATA*
 RouteServerpFindTrainById
     (
@@ -327,14 +306,12 @@ RouteServerpTask
 
                     if(RouteServerpHasDestination(trainData))
                     {
-                        TRACK_NODE* actualLocation = RouteServerpFindActualLocation(&trainData->currentLocation.location);
-
                         if(SUCCESSFUL(RouteServerpFindRoute(graph, 
-                                                            actualLocation, 
+                                                            trainData->currentLocation.location.node, 
                                                             trainData->destination.node, 
                                                             &trainData->path)))
                         {
-
+                            
                         }
                     }
                 }

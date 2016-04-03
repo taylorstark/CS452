@@ -133,6 +133,12 @@ TrackDistanceBetween
         OUT UINT* distance
     )
 {
+    if(n1 == n2)
+    {
+        *distance = 0;
+        return 0;
+    }
+
     TRACK_EDGE* nextEdge = TrackNextEdge(n1);
     TRACK_NODE* nextNode = nextEdge->dest;
     UINT d = nextEdge->dist;

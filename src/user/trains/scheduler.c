@@ -117,12 +117,13 @@ SchedulerpTask
 
                 // We may have reached the end of the track
                 if(NULL != trainSchedule->nextNode)
-                {                   
-                    // We may be in the middle of a reverse, in which case we may not be able to find a path to the next node
-                    UINT distanceBetweenNodes;
-                    if(SUCCESSFUL(TrackDistanceBetween(request.trainLocation.location.node, trainSchedule->nextNode, &distanceBetweenNodes)))
+                {
+                    // The train may not be moving, in which case it will take infinity amount of time to reach the next node
+                    if(request.trainLocation.velocity > SCHEDULER_TRAIN_NOT_MOVING_THRESHOLD)
                     {
-                        if(request.trainLocation.velocity > SCHEDULER_TRAIN_NOT_MOVING_THRESHOLD)
+                        // We may be in the middle of a reverse, in which case we may not be able to find a path to the next node
+                        UINT distanceBetweenNodes;
+                        if(SUCCESSFUL(TrackDistanceBetween(request.trainLocation.location.node, trainSchedule->nextNode, &distanceBetweenNodes)))
                         {
                             // Due to sensor latency, we may believe we've gone past the sensor
                             // If we think we've gone past the sensor, then just use our last arrival time guess

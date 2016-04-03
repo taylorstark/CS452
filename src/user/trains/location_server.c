@@ -201,6 +201,32 @@ LocationServerpRegistrarTask
 }
 
 static
+LOCATION
+LocationServerpFindActualLocation
+    (
+        IN LOCATION* location
+    )
+{
+    LOCATION actualLocation = *location;
+    actualLocation.distancePastNode /= 1000; // need to convert units
+
+    TRACK_EDGE* nextEdge = TrackNextEdge(actualLocation.node);
+
+    while(NODE_EXIT != location->node->type &&
+          NODE_BRANCH != location->node->type && 
+          actualLocation.distancePastNode > nextEdge->dist)
+    {
+        actualLocation.node = nextEdge->dest;
+        actualLocation.distancePastNode -= nextEdge->dist;
+        nextEdge = TrackNextEdge(actualLocation.node);
+    }
+
+    actualLocation.distancePastNode *= 1000; // convert the units back
+
+    return actualLocation;
+}
+
+static
 TRAIN_DATA*
 LocationServerpFindTrainById
     (
@@ -349,7 +375,7 @@ LocationServerpTask
 
                             // Send the updated location to the registrar to send to any registrants
                             request.trainLocation.train = trainData->train;
-                            request.trainLocation.location = trainData->location;
+                            request.trainLocation.location = LocationServerpFindActualLocation(&trainData->location);
                             request.trainLocation.velocity = trainData->velocity;
                             request.trainLocation.acceleration = LocationServerpAcceleration(trainData);
                             request.trainLocation.accelerationTicks = trainData->accelerationTicks;
