@@ -10,7 +10,6 @@
 #include <user/trains.h>
 
 #define ROUTE_SERVER_NAME "route"
-#define REVERSE_PENALTY 400000 // 40cm
 #define INFINITY 0xFFFFFFFF
 
 typedef enum _ROUTE_REQUEST_TYPE
@@ -283,7 +282,7 @@ RouteServerpSelectOptimalPath
                                                     currentLocation->acceleration,
                                                     min(currentLocation->accelerationTicks, AVERAGE_TRAIN_COMMAND_LATENCY));
         UINT stoppingDistance = PhysicsStoppingDistance(currentLocation->train, endingVelocity, direction);
-        UINT reversePathWeight = reversePath->totalDistance + (stoppingDistance * 2) + REVERSE_PENALTY;
+        UINT reversePathWeight = reversePath->totalDistance + (stoppingDistance * 2) + (endingVelocity * 3);
 
         // Compare the cost of going forward against the cost of going in reverse
         if(reversePathWeight < forwardPath->totalDistance)
