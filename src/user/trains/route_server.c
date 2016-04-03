@@ -306,12 +306,26 @@ RouteServerpTask
 
                     if(RouteServerpHasDestination(trainData))
                     {
-                        if(SUCCESSFUL(RouteServerpFindRoute(graph, 
-                                                            trainData->currentLocation.location.node, 
-                                                            trainData->destination.node, 
-                                                            &trainData->path)))
+                        PATH forwardPath;
+                        PATH reversePath;
+
+                        BOOLEAN hasForwardPath = SUCCESSFUL(RouteServerpFindRoute(graph, 
+                                                                                  trainData->currentLocation.location.node, 
+                                                                                  trainData->destination.node, 
+                                                                                  &forwardPath));
+                        BOOLEAN hasReversePath = SUCCESSFUL(RouteServerpFindRoute(graph, 
+                                                                                  trainData->currentLocation.location.node->reverse, 
+                                                                                  trainData->destination.node, 
+                                                                                  &reversePath));
+
+                        if(hasForwardPath)
                         {
-                            
+                            //Log("F %d", forwardPath.numNodes);
+                        }
+
+                        if(hasReversePath)
+                        {
+                            //Log("R %d", reversePath.numNodes);
                         }
                     }
                 }
