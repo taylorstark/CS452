@@ -18,6 +18,7 @@ typedef enum _ROUTE_REQUEST_TYPE
     LocationUpdateRequest = 0, 
     DirectionUpdateRequest, 
     SetDestinationRequest, 
+    ClearDestinationRequest,
     AwaitRouteRequest
 } ROUTE_REQUEST_TYPE;
 
@@ -33,6 +34,7 @@ typedef struct _ROUTE_REQUEST
 
     union
     {
+        UCHAR train;
         TRAIN_LOCATION trainLocation;
         TRAIN_DIRECTION trainDirection;
         ROUTE_TO_DESTINATION_REQUEST routeToDestination;
@@ -331,7 +333,7 @@ RouteServerpFixupReversePath
     // Compute the nodes travelled while performing the reverse
     fixedPath.totalDistance *= 2;
 
-    for(INT i = fixedPath.numNodes - 2; i >= 0; i--)
+    for(INT i = fixedPath.numNodes - 2; i > 0; i--)
     {
         TRACK_NODE* reversedNode = fixedPath.nodes[i].node->reverse;
         UINT direction = RouteServerpCalculateDirectionTaken(reversedNode);
@@ -341,10 +343,10 @@ RouteServerpFixupReversePath
         fixedPath.numNodes++;
     }
 
-    // Copy over the rest of the path, skipping over the initial node (we've already added it)
+    // Copy over the rest of the path
     fixedPath.totalDistance += reversePath->totalDistance;
 
-    for(UINT i = 1; i < reversePath->numNodes; i++)
+    for(UINT i = 0; i < reversePath->numNodes; i++)
     {
         fixedPath.nodes[fixedPath.numNodes++] = reversePath->nodes[i];
     }
@@ -368,7 +370,7 @@ RouteServerpSelectOptimalPath
     BOOLEAN hasForwardPath = SUCCESSFUL(RouteServerpFindRoute(graph, currentLocation->location.node, dest, forwardPath));
     BOOLEAN hasReversePath = SUCCESSFUL(RouteServerpFindRoute(graph, currentLocation->location.node->reverse, dest, reversePath));
 
-    if(hasReversePath && reversePath->numNodes > 1)
+    if(hasReversePath && reversePath->numNodes > 0)
     {
         RouteServerpFixupReversePath(currentLocation, direction, reversePath);
     }
@@ -537,6 +539,20 @@ RouteServerpTask
                 break;
             }
 
+            case ClearDestinationRequest:
+            {
+                ROUTE_DATA* trainData = RouteServerpFindTrainById(trackedTrains, numTrackedTrains, request.train);
+
+                if(NULL != trainData)
+                {
+                    trainData->destination.node = NULL;
+                    trainData->destination.distancePastNode = 0;
+                }
+
+                VERIFY(SUCCESSFUL(Reply(senderId, NULL, 0)));
+                break;
+            }
+
             case AwaitRouteRequest:
             {
                 VERIFY(RT_SUCCESS(RtCircularBufferPush(&awaitingTasks, &senderId, sizeof(senderId))));
@@ -578,6 +594,28 @@ RouteTrainToDestination
         request.type = SetDestinationRequest;
         request.routeToDestination.train = train;
         request.routeToDestination.destination = *destination;
+
+        result = Send(routeServerId, &request, sizeof(request), NULL, 0);
+    }
+
+    return result;
+}
+
+INT
+RouteClearDestination
+    (
+        IN UCHAR train
+    )
+{
+    INT result = WhoIs(ROUTE_SERVER_NAME);
+
+    if(SUCCESSFUL(result))
+    {
+        INT routeServerId = result;
+
+        ROUTE_REQUEST request;
+        request.type = ClearDestinationRequest;
+        request.train = train;
 
         result = Send(routeServerId, &request, sizeof(request), NULL, 0);
     }

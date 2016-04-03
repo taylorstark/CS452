@@ -360,7 +360,6 @@ LocationServerpTask
                                 {
                                     trainData->velocity = 0;
                                     trainData->accelerationTicks = 0;
-                                    Log("Stopped %d %s %d", trainData->train, trainData->location.node->name, trainData->location.distancePastNode);
                                 }
                             }
                         }

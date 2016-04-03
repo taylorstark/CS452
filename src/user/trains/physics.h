@@ -52,6 +52,13 @@ PhysicsStoppingDistance
     );
 
 UINT
+PhysicsStoppingTime
+    (
+        IN UCHAR train, 
+        IN UINT velocity
+    );
+
+UINT
 PhysicsEndingVelocity
     (
         IN UINT startingVelocity, 

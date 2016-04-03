@@ -46,7 +46,7 @@ PhysicsInit
     g_steadyStateVelocities[69][14] = 5924;
 
     RtMemset(g_accelerations, sizeof(g_accelerations), 0);
-    g_accelerations[58] = 1550;
+    g_accelerations[58] = 1580;
     g_accelerations[63] = 1850;
     g_accelerations[69] = 2120;
 }
@@ -151,6 +151,16 @@ PhysicsStoppingDistance
     UINT stoppingDistance = PhysicsCorrectAccelerationUnitsInverse(velocity * velocity) / (2 * g_accelerations[train]);
 
     return stoppingDistance + PhysicspDistanceFromPickupToFrontOfTrain(direction);
+}
+
+UINT
+PhysicsStoppingTime
+    (
+        IN UCHAR train, 
+        IN UINT velocity
+    )
+{
+    return PhysicsCorrectAccelerationUnitsInverse(velocity) / g_accelerations[train];
 }
 
 UINT

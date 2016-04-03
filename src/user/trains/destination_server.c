@@ -15,7 +15,8 @@ typedef enum _DESTINATION_REQUEST_TYPE
 {
     DestinationOnce = 0, 
     DestinationForever, 
-    AttributedSensorUpdateRequest
+    AttributedSensorUpdateRequest, 
+    DestinationReachedRequest
 } DESTINATION_REQUEST_TYPE;
 
 typedef struct _DESTINATION_ONCE_REQUEST
@@ -41,6 +42,7 @@ typedef struct _DESTINATION_REQUEST
         UCHAR train;
         DESTINATION_ONCE_REQUEST destinationOnce;
         ATTRIBUTED_SENSOR attributedSensor;
+        DESTINATION_REACHED destinationReached;
     };
 } DESTINATION_REQUEST;
 
@@ -60,6 +62,26 @@ DestinationServerpAttributedSensorNotifierTask
     while(1)
     {
         VERIFY(SUCCESSFUL(AttributedSensorAwait(&request.attributedSensor)));
+        VERIFY(SUCCESSFUL(Send(destinationServerId, &request, sizeof(request), NULL, 0)));
+    }
+}
+
+static
+VOID
+DestinationServerpDestinationReachedNotifierTask
+    (
+        VOID
+    )
+{
+    INT destinationServerId = MyParentTid();
+    ASSERT(SUCCESSFUL(destinationServerId));
+
+    DESTINATION_REQUEST request;
+    request.type = DestinationReachedRequest;
+
+    while(1)
+    {
+        VERIFY(SUCCESSFUL(DestinationReachedAwait(&request.destinationReached)));
         VERIFY(SUCCESSFUL(Send(destinationServerId, &request, sizeof(request), NULL, 0)));
     }
 }
@@ -122,6 +144,7 @@ DestinationServerpRouteToDestination
 {
     VERIFY(SUCCESSFUL(RouteTrainToDestination(train, location)));
     VERIFY(SUCCESSFUL(StopTrainAtLocation(train, location)));
+    Log("Driving train %d to %s", train, location->node->name);
 }
 
 static
@@ -136,6 +159,7 @@ DestinationServerpTask
 
     VERIFY(SUCCESSFUL(RegisterAs(DESTINATION_SERVER_NAME)));
     VERIFY(SUCCESSFUL(Create(HighestUserPriority, DestinationServerpAttributedSensorNotifierTask)));
+    VERIFY(SUCCESSFUL(Create(HighestUserPriority, DestinationServerpDestinationReachedNotifierTask)));
 
     while(1)
     {
@@ -202,6 +226,36 @@ DestinationServerpTask
                 }
 
                 VERIFY(SUCCESSFUL(Reply(senderId, NULL, 0)));
+                break;
+            }
+
+            case DestinationReachedRequest:
+            {
+                // Unblock the notifier ASAP
+                VERIFY(SUCCESSFUL(Reply(senderId, NULL, 0)));
+
+                // Find the train that has reached its destination
+                DESTINATION_DATA* destinationData = &destinations[request.destinationReached.train];
+                ASSERT(DestinationServerpHasDestination(destinationData) && request.destinationReached.location.node == destinationData->destination.node);
+
+                // Let the user know that the train has arrived
+                Log("Train %d arrived at %s", request.destinationReached.train, request.destinationReached.location.node->name);
+
+                // The train no longer has a destination
+                destinationData->destination.node = NULL;
+                destinationData->destination.distancePastNode = 0;
+
+                // TODO: The route server can't wait on the stop server, so we'll have to let the route server
+                //       know that the destination was reached
+                VERIFY(SUCCESSFUL(RouteClearDestination(request.destinationReached.train)));
+
+                // Check to see if we should pick a new destination for this train
+                if(destinationData->forever)
+                {
+                    destinationData->destination = DestinationServerpGenerateRandomLocation(destinationData);
+                    DestinationServerpRouteToDestination(request.destinationReached.train, &destinationData->destination);
+                }
+
                 break;
             }
 

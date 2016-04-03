@@ -235,6 +235,12 @@ RouteTrainToDestination
     );
 
 INT
+RouteClearDestination
+    (
+        IN UCHAR train
+    );
+
+INT
 RouteAwait
     (
         OUT ROUTE* route
@@ -244,11 +250,23 @@ RouteAwait
  *          STOP API                *
  ************************************/
 
+typedef struct _DESTINATION_REACHED
+{
+    UCHAR train;
+    LOCATION location;
+} DESTINATION_REACHED;
+
 INT
 StopTrainAtLocation
     (
         IN UCHAR train,
         IN LOCATION* location
+    );
+
+INT
+DestinationReachedAwait
+    (
+        OUT DESTINATION_REACHED* destinationReached
     );
 
 /************************************
