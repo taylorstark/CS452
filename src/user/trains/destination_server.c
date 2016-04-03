@@ -9,7 +9,7 @@
 #include <user/trains.h>
 
 #define DESTINATION_SERVER_NAME "dest"
-#define DESTINATION_SERVER_LOOKING_FOR_TRAIN_SPEED 8
+#define DESTINATION_SERVER_LOOKING_FOR_TRAIN_SPEED 10
 
 typedef enum _DESTINATION_REQUEST_TYPE
 {
@@ -114,6 +114,17 @@ DestinationServerpGenerateRandomLocation
 
 static
 VOID
+DestinationServerpRouteToDestination
+    (
+        IN UCHAR train, 
+        IN LOCATION* location
+    )
+{
+    VERIFY(SUCCESSFUL(RouteTrainToDestination(train, location)));
+}
+
+static
+VOID
 DestinationServerpTask
     (
         VOID
@@ -147,8 +158,7 @@ DestinationServerpTask
 
                     if(DestinationServerpHasDestination(destinationData))
                     {
-                        // TODO
-                        Log("Destination server found %d", request.attributedSensor.train);
+                        DestinationServerpRouteToDestination(request.attributedSensor.train, &destinationData->destination);
                     }
                 }
 
@@ -160,10 +170,10 @@ DestinationServerpTask
                 DESTINATION_DATA* destinationData = &destinations[request.destinationOnce.train];
                 destinationData->destination = request.destinationOnce.location;
                 destinationData->forever = FALSE;
-                Log("%d going to %s", request.train, destinationData->destination.node->name);
+
                 if(destinationData->hasBeenFound)
                 {
-                    // TODO
+                    DestinationServerpRouteToDestination(request.destinationOnce.train, &destinationData->destination);
                 }
                 else
                 {
@@ -180,10 +190,10 @@ DestinationServerpTask
                 VERIFY(SUCCESSFUL(DestinationServerpInitializeTrainRng(request.train, destinationData)));
                 destinationData->destination = DestinationServerpGenerateRandomLocation(destinationData);
                 destinationData->forever = TRUE;
-                Log("%d going forever to %s", request.train, destinationData->destination.node->name);
+
                 if(destinationData->hasBeenFound)
                 {
-                    // TODO
+                    DestinationServerpRouteToDestination(request.train, &destinationData->destination);
                 }
                 else
                 {

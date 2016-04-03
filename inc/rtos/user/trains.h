@@ -217,7 +217,15 @@ typedef struct _PATH
 {
     PATH_NODE nodes[TRACK_MAX];
     UINT numNodes;
+    UINT totalDistance;
 } PATH;
+
+INT
+RouteTrainToDestination
+    (
+        IN UCHAR train, 
+        IN LOCATION* destination
+    );
 
 /************************************
  *            TRACK API             *

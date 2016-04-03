@@ -8,7 +8,59 @@
 #include <track/track_data.h>
 #include <user/trains.h>
 
+#define ROUTE_SERVER_NAME "route"
 #define INFINITY 0xFFFFFFFF
+
+typedef enum _ROUTE_REQUEST_TYPE
+{
+    LocationUpdateRequest = 0, 
+    SetDestinationRequest
+} ROUTE_REQUEST_TYPE;
+
+typedef struct _ROUTE_TO_DESTINATION_REQUEST
+{
+    UCHAR train;
+    LOCATION destination;
+} ROUTE_TO_DESTINATION_REQUEST;
+
+typedef struct _ROUTE_REQUEST
+{
+    ROUTE_REQUEST_TYPE type;
+
+    union
+    {
+        TRAIN_LOCATION trainLocation;
+        ROUTE_TO_DESTINATION_REQUEST routeToDestination;
+    };
+} ROUTE_REQUEST;
+
+typedef struct _ROUTE_DATA
+{
+    UCHAR train;
+    LOCATION destination;
+    TRAIN_LOCATION currentLocation;
+    PATH path;
+} ROUTE_DATA;
+
+static
+VOID
+RouteServerpLocationNotifierTask
+    (
+        VOID
+    )
+{
+    INT routeServerId = MyParentTid();
+    ASSERT(SUCCESSFUL(routeServerId));
+
+    ROUTE_REQUEST request;
+    request.type = LocationUpdateRequest;
+
+    while(1)
+    {
+        VERIFY(SUCCESSFUL(LocationAwait(&request.trainLocation)));
+        VERIFY(SUCCESSFUL(Send(routeServerId, &request, sizeof(request), NULL, 0)));
+    }
+}
 
 static
 inline
@@ -142,13 +194,16 @@ RouteServerpFindRoute
         }
     }
 
-    if(NULL != previous[RouteServerpIndex(graph, dest)].node)
+    UINT destIndex = RouteServerpIndex(graph, dest);
+
+    if(NULL != previous[destIndex].node)
     {
         path->nodes[0].node = dest;
         path->nodes[0].direction = 0;
         path->numNodes = 1;
+        path->totalDistance = distance[destIndex] * 1000; // need to perform unit conversion
 
-        PATH_NODE* iterator = &previous[RouteServerpIndex(graph, dest)];
+        PATH_NODE* iterator = &previous[destIndex];
 
         // Build the discovered path
         while(NULL != iterator->node)
@@ -167,10 +222,70 @@ RouteServerpFindRoute
 
         return 0;
     }
+    else if(start == dest)
+    {
+        path->nodes[0].node = dest;
+        path->nodes[0].direction = 0;
+        path->numNodes = 1;
+        path->totalDistance = 0;
+
+        return 0;
+    }
     else
     {
         return -1;
     }
+}
+
+static
+TRACK_NODE*
+RouteServerpFindActualLocation
+    (
+        IN LOCATION* location
+    )
+{
+    UINT distancePastNode = location->distancePastNode / 1000; // need to convert units
+    TRACK_NODE* actualLocation = location->node;
+    TRACK_EDGE* nextEdge = TrackNextEdge(actualLocation);
+
+    while(NODE_BRANCH != actualLocation->type && distancePastNode > nextEdge->dist)
+    {
+        distancePastNode -= nextEdge->dist;
+        actualLocation = nextEdge->dest;
+        nextEdge = TrackNextEdge(actualLocation);
+    }
+
+    return actualLocation;
+}
+
+static
+ROUTE_DATA*
+RouteServerpFindTrainById
+    (
+        IN ROUTE_DATA* trackedTrains, 
+        IN UINT numTrackedTrains, 
+        IN UCHAR train
+    )
+{
+    for(UINT i = 0; i < numTrackedTrains; i++)
+    {
+        if(trackedTrains[i].train == train)
+        {
+            return &trackedTrains[i];
+        }
+    }
+
+    return NULL;
+}
+
+static
+BOOLEAN
+RouteServerpHasDestination
+    (
+        IN ROUTE_DATA* train
+    )
+{
+    return NULL != train->destination.node;
 }
 
 static
@@ -180,37 +295,74 @@ RouteServerpTask
         VOID
     )
 {
-    /*
-    PATH test;
+    TRACK_NODE* graph = GetTrack();
 
-    SENSOR e8 = { 'E', 8 };
-    SENSOR c3 = { 'C', 3 };
-    SENSOR c8 = { 'C', 8 };
-    SENSOR c14 = { 'C', 14 };
+    UINT numTrackedTrains = 0;
+    ROUTE_DATA trackedTrains[MAX_TRACKABLE_TRAINS];
+    RtMemset(trackedTrains, sizeof(trackedTrains), 0);
 
-    RouteServerpFindRoute(GetTrack(), TrackFindSensor(&c3), TrackFindSensor(&c8), &test);
-    RouteServerpFindRoute(GetTrack(), TrackFindSensor(&e8), TrackFindSensor(&c8), &test);
-    RouteServerpFindRoute(GetTrack(), TrackFindSensor(&e8), TrackFindSensor(&c14), &test);
-    */
+    VERIFY(SUCCESSFUL(RegisterAs(ROUTE_SERVER_NAME)));
+    VERIFY(SUCCESSFUL(Create(HighestUserPriority, RouteServerpLocationNotifierTask)));
 
-    PATH test;
-
-    SENSOR e8 = { 'E', 8 };
-    SENSOR c8 = { 'C', 8 };
-
-    if(SUCCESSFUL(RouteServerpFindRoute(GetTrack(), TrackFindSensor(&e8), TrackFindSensor(&c8), &test)))
+    while(1)
     {
-        for(UINT i = 0; i < test.numNodes; i++)
+        INT senderId;
+        ROUTE_REQUEST request;
+
+        VERIFY(SUCCESSFUL(Receive(&senderId, &request, sizeof(request))));
+
+        switch(request.type)
         {
-            if(NODE_SENSOR == test.nodes[i].node->type)
+            case LocationUpdateRequest:
             {
-                Log("%s", test.nodes[i].node->name);
+                // Reply to the notifier ASAP
+                VERIFY(SUCCESSFUL(Reply(senderId, NULL, 0)));
+
+                // See if this train has a destination
+                ROUTE_DATA* trainData = RouteServerpFindTrainById(trackedTrains, numTrackedTrains, request.trainLocation.train);
+
+                if(NULL != trainData)
+                {
+                    trainData->currentLocation = request.trainLocation;
+
+                    if(RouteServerpHasDestination(trainData))
+                    {
+                        TRACK_NODE* actualLocation = RouteServerpFindActualLocation(&trainData->currentLocation.location);
+
+                        if(SUCCESSFUL(RouteServerpFindRoute(graph, 
+                                                            actualLocation, 
+                                                            trainData->destination.node, 
+                                                            &trainData->path)))
+                        {
+
+                        }
+                    }
+                }
+
+                break;
+            }
+
+            case SetDestinationRequest:
+            {
+                ROUTE_DATA* trainData = RouteServerpFindTrainById(trackedTrains, numTrackedTrains, request.routeToDestination.train);
+
+                if(NULL == trainData)
+                {
+                    trainData = &trackedTrains[numTrackedTrains++];
+                    trainData->train = request.routeToDestination.train;
+                }
+
+                trainData->destination = request.routeToDestination.destination;
+                VERIFY(SUCCESSFUL(Reply(senderId, NULL, 0)));
+                break;
+            }
+
+            default:
+            {
+                ASSERT(FALSE);
+                break;
             }
         }
-    }
-    else
-    {
-        Log("No path");
     }
 }
 
@@ -221,4 +373,28 @@ RouteServerCreate
     )
 {
     VERIFY(SUCCESSFUL(Create(Priority16, RouteServerpTask)));
+}
+
+INT
+RouteTrainToDestination
+    (
+        IN UCHAR train, 
+        IN LOCATION* destination
+    )
+{
+    INT result = WhoIs(ROUTE_SERVER_NAME);
+
+    if(SUCCESSFUL(result))
+    {
+        INT routeServerId = result;
+
+        ROUTE_REQUEST request;
+        request.type = SetDestinationRequest;
+        request.routeToDestination.train = train;
+        request.routeToDestination.destination = *destination;
+
+        result = Send(routeServerId, &request, sizeof(request), NULL, 0);
+    }
+
+    return result;
 }
