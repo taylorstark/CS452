@@ -35,6 +35,7 @@ typedef struct _CONDUCTOR_REQUEST
 typedef struct _CONDUCTOR_DATA
 {
     UCHAR reverseCount;
+    UCHAR speed;
     DIRECTION direction;
 } CONDUCTOR_DATA;
 
@@ -121,6 +122,7 @@ ConductorpTask
 
     VERIFY(SUCCESSFUL(Create(HighestUserPriority, ConductorpRouteNotifierTask)));
     VERIFY(SUCCESSFUL(Create(HighestUserPriority, ConductorpSpeedChangeNotifierTask)));
+    VERIFY(SUCCESSFUL(Create(HighestUserPriority, ConductorpDirectionChangeNotifierTask)));
 
     while(1)
     {
@@ -147,7 +149,7 @@ ConductorpTask
                         data->reverseCount = 2;
                         VERIFY(SUCCESSFUL(TrainReverse(request.route.trainLocation.train)));
                     }
-                    else
+                    else if(request.route.path.numNodes > 0)
                     {
                         // Is the train moving?
                         if(0 == request.route.trainLocation.velocity)
@@ -169,11 +171,11 @@ ConductorpTask
                             do
                             {
                                 PATH_NODE* pathNode = &request.route.path.nodes[index++];
-                                distance -= pathNode->node.edge[pathNode->direction].dist * 1000; // convert units
-                            } while(index < request.route.path.numNodes && distance > 0)
+                                distance -= pathNode->node->edge[pathNode->direction].dist * 1000; // convert units
+                            } while(index < request.route.path.numNodes && distance > 0);
 
                             // Are we still on the path?
-                            if(index < request.route.path.numNodes && )
+                            if(index < request.route.path.numNodes)
                             {
                                 PATH_NODE* pathNode = &request.route.path.nodes[index];
 
@@ -198,6 +200,7 @@ ConductorpTask
 
                 // Update the train's speed
                 CONDUCTOR_DATA* data = &trainData[request.trainSpeed.train];
+                data->speed = request.trainSpeed.speed;
 
                 // If the train is reversing, we will receive 2 speed update requests
                 if(ConductorpIsReversing(data))
