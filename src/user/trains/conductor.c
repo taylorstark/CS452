@@ -87,32 +87,6 @@ ConductorpIsReversing
 }
 
 static
-UINT
-ConductorpFirstViablePathNodeIndex
-    (
-        IN TRAIN_LOCATION* trainLocation, 
-        IN PATH* path
-    )
-{
-    
-
-    return index;
-}
-
-static
-BOOLEAN
-ConductorpFirstBranchAfter
-    (
-        IN PATH* path, 
-        IN UINT index, 
-        OUT UINT 
-        OUT PATH_NODE** branch
-    )
-{
-
-}
-
-static
 VOID
 ConductorpTask
     (
