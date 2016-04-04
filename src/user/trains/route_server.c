@@ -12,6 +12,7 @@
 
 #define ROUTE_SERVER_NAME "route"
 #define INFINITY 0xFFFFFFFF
+#define ROUTE_SERVER_MINIMUM_VELOCITY_TO_BE_CONFIDENT_IN_POSITION 3000
 
 typedef enum _ROUTE_REQUEST_TYPE
 {
@@ -384,11 +385,16 @@ RouteServerpSelectOptimalPath
     )
 {
     BOOLEAN hasForwardPath = SUCCESSFUL(RouteServerpFindRoute(graph, currentLocation->location.node, dest, forwardPath));
-    BOOLEAN hasReversePath = SUCCESSFUL(RouteServerpFindRoute(graph, currentLocation->location.node->reverse, dest, reversePath));
+    BOOLEAN hasReversePath = FALSE;
 
-    if(hasReversePath && reversePath->numNodes > 0)
+    if(0 == currentLocation->velocity || currentLocation->velocity > ROUTE_SERVER_MINIMUM_VELOCITY_TO_BE_CONFIDENT_IN_POSITION)
     {
-        RouteServerpFixupReversePath(currentLocation, direction, reversePath);
+        hasReversePath = SUCCESSFUL(RouteServerpFindRoute(graph, currentLocation->location.node->reverse, dest, reversePath));
+
+        if(hasReversePath && reversePath->numNodes > 0)
+        {
+            RouteServerpFixupReversePath(currentLocation, direction, reversePath);
+        }
     }
     
     forwardPath->performsReverse = FALSE;
@@ -396,7 +402,7 @@ RouteServerpSelectOptimalPath
 
     if(hasForwardPath && hasReversePath)
     {
-        UINT reversePathWeight = reversePath->totalDistance + (currentLocation->velocity * 300);
+        UINT reversePathWeight = reversePath->totalDistance + (currentLocation->velocity * 400);
 
         // Compare the cost of going forward against the cost of going in reverse
         if(reversePathWeight < forwardPath->totalDistance)
