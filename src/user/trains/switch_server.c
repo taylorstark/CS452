@@ -169,13 +169,16 @@ SwitchpTask
         {
             case SetDirectionRequest:
             {
-                VERIFY(SUCCESSFUL(SwitchpDirection(&com1, request.sw, request.direction)));
-                VERIFY(SUCCESSFUL(SwitchpDisableSolenoid(&com1)));
-
                 UINT switchIndex = SwitchpToIndex(request.sw);
-                directions[switchIndex] = request.direction;
-                VERIFY(SUCCESSFUL(Reply(sender, NULL, 0)));
 
+                if(directions[switchIndex] != request.direction)
+                {
+                    directions[switchIndex] = request.direction;
+                    VERIFY(SUCCESSFUL(SwitchpDirection(&com1, request.sw, request.direction)));
+                    VERIFY(SUCCESSFUL(SwitchpDisableSolenoid(&com1)));
+                }
+                
+                VERIFY(SUCCESSFUL(Reply(sender, NULL, 0)));
                 ShowSwitchDirection(switchIndex, request.sw, request.direction);
 
                 INT awaitingTask;

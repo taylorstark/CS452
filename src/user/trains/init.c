@@ -4,6 +4,7 @@
 
 #include "attribution_server.h"
 #include "calibration.h"
+#include "conductor.h"
 #include "clock.h"
 #include "destination_server.h"
 #include "display.h"
@@ -46,6 +47,7 @@ InitTrainTasks
     SafetyCreateTask();
     SchedulerCreateTask();
     RouteServerCreate();
+    ConductorCreateTask();
     StopServerCreate();
     DestinationServerCreate();
 
