@@ -160,19 +160,6 @@ RouteServerpSort
 }
 
 static
-inline
-BOOLEAN
-RouteServerpIsEdgeViable
-    (
-        IN TRACK_NODE* node, 
-        IN UINT edge
-    )
-{
-    // There is one dead switch on track B
-    return !(NODE_BRANCH == node->type && 18 == node->num && DIR_CURVED == edge && RtStrEqual("BR18", (STRING) node->name));
-}
-
-static
 INT
 RouteServerpFindRoute
     (
@@ -216,24 +203,21 @@ RouteServerpFindRoute
 
         for(UINT i = 0; i < numNeighbours; i++)
         {
-            if(RouteServerpIsEdgeViable(currentNode, i))
+            TRACK_EDGE* neighbourEdge = &currentNode->edge[i];
+            TRACK_NODE* neighbour = neighbourEdge->dest;
+            UINT neighbourIndex = RouteServerpIndex(graph, neighbour);
+            UINT cost = distance[RouteServerpIndex(graph, currentNode)] + neighbourEdge->dist;
+
+            if(cost < distance[neighbourIndex])
             {
-                TRACK_EDGE* neighbourEdge = &currentNode->edge[i];
-                TRACK_NODE* neighbour = neighbourEdge->dest;
-                UINT neighbourIndex = RouteServerpIndex(graph, neighbour);
-                UINT cost = distance[RouteServerpIndex(graph, currentNode)] + neighbourEdge->dist;
-
-                if(cost < distance[neighbourIndex])
+                if(NULL == previous[neighbourIndex].node)
                 {
-                    if(NULL == previous[neighbourIndex].node)
-                    {
-                        unvisitedNodes[numUnvisitedNodes++] = neighbour;
-                    }
-
-                    distance[neighbourIndex] = cost;
-                    previous[neighbourIndex].node = currentNode;
-                    previous[neighbourIndex].direction = i;
+                    unvisitedNodes[numUnvisitedNodes++] = neighbour;
                 }
+
+                distance[neighbourIndex] = cost;
+                previous[neighbourIndex].node = currentNode;
+                previous[neighbourIndex].direction = i;
             }
         }
     }
