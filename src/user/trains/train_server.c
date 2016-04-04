@@ -303,7 +303,7 @@ TrainpTask
 
                 // Schedule a task to reverse the train's direction after it has come to a stop
                 TRAIN_WORKER_REQUEST workerRequest;
-                workerRequest.delay = 100 * (oldSpeed / 3 + 1); // TODO - More accurate stopping time
+                workerRequest.delay = 0 == oldSpeed ? 10 : 100 * (oldSpeed / 4 + 1); // TODO - More accurate stopping time
                 workerRequest.request.type = ReverseStoppedRequest;
                 workerRequest.request.train = request.train;
                 workerRequest.request.speed = oldSpeed;
