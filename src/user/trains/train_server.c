@@ -283,12 +283,16 @@ TrainpTask
             case SetSpeedRequest:
             {
                 // Set the train's speed
-                VERIFY(SUCCESSFUL(TrainpSetSpeed(&com1, request.train, request.speed)));
-                speeds[request.train - 1] = request.speed;
-                VERIFY(SUCCESSFUL(Reply(sender, NULL, 0)));
+                if(speeds[request.train - 1] != request.speed)
+                {
+                    speeds[request.train - 1] = request.speed;
+                    VERIFY(SUCCESSFUL(TrainpSetSpeed(&com1, request.train, request.speed)));
 
-                // Let tasks know about the train's new speed
-                TrainpNotifySpeedChange(&awaitingSpeedChangeTasks, request.train, request.speed);
+                    // Let tasks know about the train's new speed
+                    TrainpNotifySpeedChange(&awaitingSpeedChangeTasks, request.train, request.speed);
+                }
+                
+                VERIFY(SUCCESSFUL(Reply(sender, NULL, 0)));
                 break;
             }
 
