@@ -121,8 +121,9 @@ DestinationServerpGenerateRandomLocation
         IN DESTINATION_DATA* destinationData
     )
 {
-    UINT randomNumber = abs(RtRngGenerate(&destinationData->rng)) % 80;
-
+    INT randomNumber = RtRngGenerate(&destinationData->rng);
+    randomNumber = abs(randomNumber) % 80;
+    
     SENSOR sensor;
     sensor.module = 'A' + (randomNumber / 16);
     sensor.number = (randomNumber % 16) + 1;
@@ -131,7 +132,15 @@ DestinationServerpGenerateRandomLocation
     location.node = TrackFindSensor(&sensor);
     location.distancePastNode = 0;
 
-    return location;
+    // Check to see if the node is reachable
+    if(NODE_ENTER == location.node->type)
+    {
+        return DestinationServerpGenerateRandomLocation(destinationData);
+    }
+    else
+    {
+        return location;
+    }
 }
 
 static
@@ -245,8 +254,8 @@ DestinationServerpTask
                 destinationData->destination.node = NULL;
                 destinationData->destination.distancePastNode = 0;
 
-                // TODO: The route server can't wait on the stop server, so we'll have to let the route server
-                //       know that the destination was reached
+                // TODO: These servers can't wait on the stop server, so we'll have to let them know
+                VERIFY(SUCCESSFUL(SetLocation(request.destinationReached.train, &request.destinationReached.location)));
                 VERIFY(SUCCESSFUL(RouteClearDestination(request.destinationReached.train)));
 
                 // Check to see if we should pick a new destination for this train

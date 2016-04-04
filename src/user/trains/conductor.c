@@ -184,7 +184,7 @@ ConductorpTask
                             }
                         }
                     }
-                    else if(request.route.trainLocation.velocity > 0) // No route and the train is moving -> stop it for safety
+                    else if(0 != data->speed) // No route and the train is moving -> stop it for safety
                     {
                         VERIFY(SUCCESSFUL(TrainSetSpeed(request.route.trainLocation.train, 0)));
                         Log("Stopping %d as it has no route", request.route.trainLocation.train);
