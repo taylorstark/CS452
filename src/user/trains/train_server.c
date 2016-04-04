@@ -236,7 +236,7 @@ TrainpTask
     UINT nextWorkerTask = 0;
     for(UINT i = 0; i < MAX_TRACKABLE_TRAINS; i++)
     {
-        workerTasks[i] = Create(Priority19, TrainpWorkerTask);
+        workerTasks[i] = Create(Priority13, TrainpWorkerTask);
         ASSERT(SUCCESSFUL(workerTasks[i]));
     }
 
@@ -287,12 +287,12 @@ TrainpTask
                 {
                     speeds[request.train - 1] = request.speed;
                     VERIFY(SUCCESSFUL(TrainpSetSpeed(&com1, request.train, request.speed)));
-
-                    // Let tasks know about the train's new speed
-                    TrainpNotifySpeedChange(&awaitingSpeedChangeTasks, request.train, request.speed);
                 }
                 
                 VERIFY(SUCCESSFUL(Reply(sender, NULL, 0)));
+
+                // Let tasks know about the train's new speed
+                TrainpNotifySpeedChange(&awaitingSpeedChangeTasks, request.train, request.speed);
                 break;
             }
 

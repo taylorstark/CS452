@@ -11,7 +11,7 @@
 
 #define CONDUCTOR_TRAIN_CRUISING_SPEED 10
 #define CONDUCTOR_DISTANCE_TO_ACTUATE_SWITCH 100000 // 10 cm
-#define CONDUCTOR_TIME_TO_ACTUATE_SWITCH 15 // 150 ms
+#define CONDUCTOR_TIME_TO_ACTUATE_SWITCH 20 // 200 ms
 
 typedef enum _CONDUCTOR_REQUEST_TYPE
 {
@@ -149,44 +149,44 @@ ConductorpTask
                         data->reverseCount = 2;
                         VERIFY(SUCCESSFUL(TrainReverse(request.route.trainLocation.train)));
                     }
-                    else if(request.route.path.numNodes > 0)
+                    else if(request.route.path.numNodes > 0) // Forward route
                     {
                         // Is the train moving?
-                        if(0 == request.route.trainLocation.velocity)
+                        if(0 == request.route.trainLocation.velocity && 0 == request.route.trainLocation.accelerationTicks)
                         {
                             VERIFY(SUCCESSFUL(TrainSetSpeed(request.route.trainLocation.train, CONDUCTOR_TRAIN_CRUISING_SPEED)));
                         }
-                        else if(request.route.path.numNodes > 0)
+                        else // Follow the route and look for switch that need to be switched
                         {
                             // How far will the train move by the time we can issue a command?
-                            INT distanceBeforeCommand = PhysicsDistanceTravelled(request.route.trainLocation.velocity, 
-                                                                                 request.route.trainLocation.acceleration, 
-                                                                                 request.route.trainLocation.accelerationTicks, 
-                                                                                 CONDUCTOR_TIME_TO_ACTUATE_SWITCH);
-                            INT distanceToFrontOfTrain = PhysicsDistanceFromPickupToFrontOfTrain(data->direction);
-                            INT distance = request.route.trainLocation.location.distancePastNode + distanceBeforeCommand + distanceToFrontOfTrain;
+                            UINT distanceBeforeCommand = PhysicsDistanceTravelled(request.route.trainLocation.velocity, 
+                                                                                  request.route.trainLocation.acceleration, 
+                                                                                  request.route.trainLocation.accelerationTicks, 
+                                                                                  CONDUCTOR_TIME_TO_ACTUATE_SWITCH);
+                            UINT distanceToFrontOfTrain = PhysicsDistanceFromPickupToFrontOfTrain(data->direction);
+                            UINT distanceLowerBound = request.route.trainLocation.location.distancePastNode + distanceBeforeCommand + distanceToFrontOfTrain;
+                            UINT distanceUpperBound = distanceLowerBound + CONDUCTOR_DISTANCE_TO_ACTUATE_SWITCH;
+                            UINT distanceTravelled = 0;
                             UINT index = 0;
 
-                            // Skip over nodes in the path we have no hope of issuing a command in time for
-                            do
+                            while(distanceTravelled < distanceUpperBound)
                             {
                                 PATH_NODE* pathNode = &request.route.path.nodes[index++];
-                                distance -= pathNode->node->edge[pathNode->direction].dist * 1000; // convert units
-                            } while(index < request.route.path.numNodes && distance > 0);
 
-                            // Are we still on the path?
-                            if(index < request.route.path.numNodes)
-                            {
-                                PATH_NODE* pathNode = &request.route.path.nodes[index];
-
-                                // Is the next node a branch and are we close enough to the switch that we should switch it
-                                if(NODE_BRANCH == pathNode->node->type && abs(distance) < CONDUCTOR_DISTANCE_TO_ACTUATE_SWITCH)
+                                if(distanceTravelled > distanceLowerBound && NODE_BRANCH == pathNode->node->type)
                                 {
                                     SWITCH_DIRECTION switchDirection = DIR_STRAIGHT == pathNode->direction ? SwitchStraight : SwitchCurved;
                                     VERIFY(SUCCESSFUL(SwitchSetDirection(pathNode->node->num, switchDirection)));
                                 }
+
+                                distanceTravelled += pathNode->node->edge[pathNode->direction].dist * 1000; // convert units
                             }
                         }
+                    }
+                    else if(request.route.trainLocation.velocity > 0) // No route and the train is moving -> stop it for safety
+                    {
+                        VERIFY(SUCCESSFUL(TrainSetSpeed(request.route.trainLocation.train, 0)));
+                        Log("Stopping %d as it has no route", request.route.trainLocation.train);
                     }
                 }
 

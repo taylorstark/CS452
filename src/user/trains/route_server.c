@@ -380,7 +380,7 @@ RouteServerpSelectOptimalPath
 
     if(hasForwardPath && hasReversePath)
     {
-        UINT reversePathWeight = reversePath->totalDistance + (currentLocation->velocity * 4);
+        UINT reversePathWeight = reversePath->totalDistance + (currentLocation->velocity * 300);
 
         // Compare the cost of going forward against the cost of going in reverse
         if(reversePathWeight < forwardPath->totalDistance)
@@ -494,22 +494,24 @@ RouteServerpTask
                                                                           &forwardPath, 
                                                                           &reversePath);
 
-                        if(NULL != optimalPath)
+                        if(NULL == optimalPath)
                         {
-                            ROUTE route;
-                            RtMemcpy(&route.trainLocation, &request.trainLocation, sizeof(route.trainLocation));
-                            RtMemcpy(&route.path, optimalPath, sizeof(route.path));
+                            forwardPath.numNodes = 0;
+                            forwardPath.totalDistance = 0;
+                            forwardPath.performsReverse = FALSE;
 
-                            INT awaitingTask;
-                            while(!RtCircularBufferIsEmpty(&awaitingTasks))
-                            {
-                                VERIFY(RT_SUCCESS(RtCircularBufferPeekAndPop(&awaitingTasks, &awaitingTask, sizeof(awaitingTask))));
-                                VERIFY(SUCCESSFUL(Reply(awaitingTask, &route, sizeof(route))));
-                            }
+                            optimalPath = &forwardPath;
                         }
-                        else
+
+                        ROUTE route;
+                        RtMemcpy(&route.trainLocation, &request.trainLocation, sizeof(route.trainLocation));
+                        RtMemcpy(&route.path, optimalPath, sizeof(route.path));
+
+                        INT awaitingTask;
+                        while(!RtCircularBufferIsEmpty(&awaitingTasks))
                         {
-                            Log("NO PATH");
+                            VERIFY(RT_SUCCESS(RtCircularBufferPeekAndPop(&awaitingTasks, &awaitingTask, sizeof(awaitingTask))));
+                            VERIFY(SUCCESSFUL(Reply(awaitingTask, &route, sizeof(route))));
                         }
                     }
                 }
@@ -545,8 +547,12 @@ RouteServerpTask
 
                 if(NULL != trainData)
                 {
+                    // Clear the train's destination
                     trainData->destination.node = NULL;
                     trainData->destination.distancePastNode = 0;
+
+                    // Clear the train's path
+                    RtMemset(&trainData->path, sizeof(trainData->path), 0);
                 }
 
                 VERIFY(SUCCESSFUL(Reply(senderId, NULL, 0)));

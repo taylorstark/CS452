@@ -219,7 +219,7 @@ StopServerpTask
                 // Use the updated location to see if we need to stop the train yet
                 LOCATION* stopLocation = &stopLocations[request.route.trainLocation.train];
 
-                if(NULL != stopLocation->node)
+                if(NULL != stopLocation->node && request.route.path.numNodes > 0)
                 {
                     // Calculate how long it will take the train to stop
                     DIRECTION direction = directions[request.route.trainLocation.train];
