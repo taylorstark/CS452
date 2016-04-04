@@ -15,14 +15,14 @@
 
 #define LOCATION_SERVER_NOTIFIER_UPDATE_INTERVAL 2 // 20 ms
 #define LOCATION_SERVER_ALPHA 5
-#define LOCATION_SERVER_AVERAGE_SENSOR_LATENCY 70 // 70 ms
 
 typedef enum _LOCATION_SERVER_REQUEST_TYPE
 {
     VelocityUpdateRequest = 0,
     AttributedSensorUpdateRequest,
     SpeedUpdateRequest,
-    DirectionUpdateRequest
+    DirectionUpdateRequest, 
+    GetLocationRequest
 } LOCATION_SERVER_REQUEST_TYPE;
 
 typedef struct _LOCATION_SERVER_REQUEST
@@ -31,17 +31,29 @@ typedef struct _LOCATION_SERVER_REQUEST
 
     union
     {
+        UCHAR train;
         ATTRIBUTED_SENSOR attributedSensor;
         TRAIN_SPEED trainSpeed;
         TRAIN_DIRECTION trainDirection;
     };
 } LOCATION_SERVER_REQUEST;
 
+typedef enum _ACCELERATION_TYPE
+{
+    ACCELERATING = 0, 
+    DECELERATING, 
+    ACCELERATING_FROM_STOP, 
+    STOPPING
+} ACCELERATION_TYPE;
+
 typedef struct _TRAIN_DATA
 {
     UCHAR train;
     LOCATION location;
     UINT velocity; // in micrometers / tick
+    ACCELERATION_TYPE accelerationType;
+    UINT accelerationTicks;
+    INT accelerationStartTime;
     INT lastArrivalTime;
     INT lastTimeLocationUpdated;
 } TRAIN_DATA;
@@ -189,6 +201,32 @@ LocationServerpRegistrarTask
 }
 
 static
+LOCATION
+LocationServerpFindActualLocation
+    (
+        IN LOCATION* location
+    )
+{
+    LOCATION actualLocation = *location;
+    actualLocation.distancePastNode /= 1000; // need to convert units
+
+    TRACK_EDGE* nextEdge = TrackNextEdge(actualLocation.node);
+
+    while(NODE_EXIT != nextEdge->dest->type &&
+          NODE_BRANCH != nextEdge->dest->type && 
+          actualLocation.distancePastNode > nextEdge->dist)
+    {
+        actualLocation.node = nextEdge->dest;
+        actualLocation.distancePastNode -= nextEdge->dist;
+        nextEdge = TrackNextEdge(actualLocation.node);
+    }
+
+    actualLocation.distancePastNode *= 1000; // convert the units back
+
+    return actualLocation;
+}
+
+static
 TRAIN_DATA*
 LocationServerpFindTrainById
     (
@@ -208,6 +246,46 @@ LocationServerpFindTrainById
     }
 
     return NULL;
+}
+
+static
+inline
+BOOLEAN
+LocationServerpIsAccelerating
+    (
+        IN TRAIN_DATA* trainData
+    )
+{
+    return trainData->accelerationTicks > 0;
+}
+
+static
+UINT
+LocationServerpAcceleration
+    (
+        IN TRAIN_DATA* trainData
+    )
+{
+    UINT acceleration = PhysicsAcceleration(trainData->train);
+
+    if(ACCELERATING_FROM_STOP == trainData->accelerationType)
+    {
+        acceleration /= 2;
+    }
+
+    return acceleration;
+}
+
+static
+inline
+BOOLEAN
+LocationServerpHasBeenFound
+    (
+        IN TRAIN_DATA* trainData
+    )
+{
+    // If we haven't matched this train to a sensor node, then it hasn't been found
+    return NULL != trainData->location.node;
 }
 
 static
@@ -255,24 +333,51 @@ LocationServerpTask
                 for(UINT i = 0; i < numTrackedTrains; i++)
                 {
                     TRAIN_DATA* trainData = &trackedTrains[i];
+                    INT diff = currentTime - trainData->lastTimeLocationUpdated;
 
-                    // Do we know where this train is yet?
-                    if(NULL != trainData->location.node)
+                    if(diff > 0)
                     {
-                        INT diff = currentTime - trainData->lastTimeLocationUpdated;
-
-                        if(diff > 0)
+                        // Handle acceleration
+                        if(trainData->accelerationTicks > 0 && currentTime >= trainData->accelerationStartTime)
                         {
-                            // TODO - Take in to account acceleration
+                            UINT timeSpentAccelerating = min(diff, trainData->accelerationTicks);
+                            trainData->accelerationTicks -= timeSpentAccelerating;
 
+                            UINT dv = PhysicsCorrectAccelerationUnits(timeSpentAccelerating * LocationServerpAcceleration(trainData));
+
+                            if(ACCELERATING == trainData->accelerationType || ACCELERATING_FROM_STOP == trainData->accelerationType)
+                            {
+                                trainData->velocity += dv;
+                            }
+                            else
+                            {
+                                UINT oldVelocity = trainData->velocity;
+                                trainData->velocity -= dv;
+
+                                // Check for underflow and check if the train should be stopped
+                                if(trainData->velocity > oldVelocity ||
+                                   (STOPPING == trainData->accelerationType && 0 == trainData->accelerationTicks))
+                                {
+                                    trainData->velocity = 0;
+                                    trainData->accelerationTicks = 0;
+                                }
+                            }
+                        }
+                        
+                        // The train may not have been found yet, in which case we're just 
+                        // updating its velocity with its acceleration
+                        if(LocationServerpHasBeenFound(trainData))
+                        {
                             // Update the train's location
                             trainData->location.distancePastNode += diff * trainData->velocity;
                             trainData->lastTimeLocationUpdated = currentTime;
-                            
+
                             // Send the updated location to the registrar to send to any registrants
                             request.trainLocation.train = trainData->train;
-                            request.trainLocation.location = trainData->location;
+                            request.trainLocation.location = LocationServerpFindActualLocation(&trainData->location);
                             request.trainLocation.velocity = trainData->velocity;
+                            request.trainLocation.acceleration = LocationServerpAcceleration(trainData);
+                            request.trainLocation.accelerationTicks = trainData->accelerationTicks;
 
                             VERIFY(SUCCESSFUL(Send(locationServerRegistrarId, &request, sizeof(request), NULL, 0)));
                         }
@@ -293,22 +398,24 @@ LocationServerpTask
 
                 if(NULL != trainData)
                 {
-                    // Update the velocity if we have a point of reference
                     INT currentTime = Time();
                     ASSERT(SUCCESSFUL(currentTime));
 
-                    if(NULL != trainData->location.node)
+                    // Update the velocity if we have a point of reference
+                    // Race condition when decelerating.  We could think we've stopped, but the train may still be moving very slowly.
+                    // This would cause us to update the train's velocity, but we think we've stopped so we don't want to do that.
+                    if(LocationServerpHasBeenFound(trainData) && !LocationServerpIsAccelerating(trainData) && trainData->velocity > 0)
                     {
                         UINT dx;
-                        VERIFY(SUCCESSFUL(TrackDistanceBetween(trainData->location.node, sensorNode, &dx)));
+                        if(SUCCESSFUL(TrackDistanceBetween(trainData->location.node, sensorNode, &dx)))
+                        {
+                            UINT dt = request.attributedSensor.timeTripped - trainData->lastArrivalTime;
+                            UINT v = dx / dt;
 
-                        UINT dt = request.attributedSensor.timeTripped - trainData->lastArrivalTime;
-
-                        UINT v = dx / dt;
-
-                        UINT newVelocityFactor = LOCATION_SERVER_ALPHA * v;
-                        UINT oldVelocityFactor = (100 - LOCATION_SERVER_ALPHA) * trainData->velocity;
-                        trainData->velocity = (newVelocityFactor + oldVelocityFactor) / 100;
+                            UINT newVelocityFactor = LOCATION_SERVER_ALPHA * v;
+                            UINT oldVelocityFactor = (100 - LOCATION_SERVER_ALPHA) * trainData->velocity;
+                            trainData->velocity = (newVelocityFactor + oldVelocityFactor) / 100;
+                        }
                     }
 
                     // Update the train's location
@@ -326,7 +433,7 @@ LocationServerpTask
                 // Unblock the notifier ASAP
                 VERIFY(SUCCESSFUL(Reply(senderId, NULL, 0)));
 
-                // Update the train's velocity and acceleration
+                // Try to find the train
                 TRAIN_DATA* trainData = LocationServerpFindTrainById(trackedTrains, numTrackedTrains, request.trainSpeed.train);
 
                 if(NULL == trainData)
@@ -337,9 +444,48 @@ LocationServerpTask
                     trainData->train = request.trainSpeed.train;
                 }
 
-                // TODO - This is a bad approximation (not taking in to account acceleration)
-                trainData->velocity = PhysicsSteadyStateVelocity(request.trainSpeed.train, request.trainSpeed.speed);
+                // Get the current time
+                INT currentTime = Time();
+                ASSERT(SUCCESSFUL(currentTime));
 
+                // If this is the first time we've seen the train, use the current time as a 
+                // reference point when performing acceleration calculations
+                if(0 == trainData->lastTimeLocationUpdated)
+                {
+                    trainData->lastTimeLocationUpdated = currentTime;
+                }
+
+                // Figure out if we're accelerating or decelerating
+                UINT targetVelocity = PhysicsSteadyStateVelocity(request.trainSpeed.train, request.trainSpeed.speed);
+                
+                if(targetVelocity > trainData->velocity)
+                {
+                    if(0 == trainData->velocity)
+                    {
+                        trainData->accelerationType = ACCELERATING_FROM_STOP;
+                    }
+                    else
+                    {
+                        trainData->accelerationType = ACCELERATING;
+                    }
+                }
+                else
+                {
+                    if(0 == targetVelocity)
+                    {
+                        trainData->accelerationType = STOPPING;
+                    }
+                    else
+                    {
+                        trainData->accelerationType = DECELERATING;
+                    }
+                }
+
+                // Figure out how long it will take to accelerate
+                UINT acceleration = LocationServerpAcceleration(trainData);
+                trainData->accelerationTicks = PhysicsCorrectAccelerationUnitsInverse(abs(((INT) trainData->velocity) - ((INT) targetVelocity))) / acceleration;
+                trainData->accelerationTicks++;
+                trainData->accelerationStartTime = currentTime + AVERAGE_TRAIN_COMMAND_LATENCY;
                 break;
             }
 
@@ -368,6 +514,22 @@ LocationServerpTask
                 break;
             }
 
+            case GetLocationRequest:
+            {
+                TRAIN_DATA* trainData = LocationServerpFindTrainById(trackedTrains, numTrackedTrains, request.train);
+
+                if(NULL != trainData)
+                {
+                    VERIFY(SUCCESSFUL(Reply(senderId, &trainData->location, sizeof(trainData->location))));
+                }
+                else
+                {
+                    ASSERT(FALSE);
+                }
+
+                break;
+            }
+
             default:
             {
                 ASSERT(FALSE);
@@ -384,6 +546,29 @@ LocationServerCreateTask
     )
 {
     VERIFY(SUCCESSFUL(Create(Priority23, LocationServerpTask)));
+}
+
+INT
+GetLocation
+    (
+        IN UCHAR train, 
+        OUT LOCATION* location
+    )
+{
+    INT result = WhoIs(LOCATION_SERVER_NAME);
+
+    if(SUCCESSFUL(result))
+    {
+        INT locationServerId = result;
+
+        LOCATION_SERVER_REQUEST request;
+        request.type = GetLocationRequest;
+        request.train = train;
+
+        result = Send(locationServerId, &request, sizeof(request), location, sizeof(*location));
+    }
+
+    return result;
 }
 
 INT

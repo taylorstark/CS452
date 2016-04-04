@@ -236,7 +236,7 @@ TrainpTask
     UINT nextWorkerTask = 0;
     for(UINT i = 0; i < MAX_TRACKABLE_TRAINS; i++)
     {
-        workerTasks[i] = Create(Priority19, TrainpWorkerTask);
+        workerTasks[i] = Create(Priority13, TrainpWorkerTask);
         ASSERT(SUCCESSFUL(workerTasks[i]));
     }
 
@@ -283,8 +283,12 @@ TrainpTask
             case SetSpeedRequest:
             {
                 // Set the train's speed
-                VERIFY(SUCCESSFUL(TrainpSetSpeed(&com1, request.train, request.speed)));
-                speeds[request.train - 1] = request.speed;
+                if(speeds[request.train - 1] != request.speed)
+                {
+                    speeds[request.train - 1] = request.speed;
+                    VERIFY(SUCCESSFUL(TrainpSetSpeed(&com1, request.train, request.speed)));
+                }
+                
                 VERIFY(SUCCESSFUL(Reply(sender, NULL, 0)));
 
                 // Let tasks know about the train's new speed
@@ -303,7 +307,7 @@ TrainpTask
 
                 // Schedule a task to reverse the train's direction after it has come to a stop
                 TRAIN_WORKER_REQUEST workerRequest;
-                workerRequest.delay = 100 * (oldSpeed / 3 + 1); // TODO - More accurate stopping time
+                workerRequest.delay = 0 == oldSpeed ? 10 : 100 * (oldSpeed / 4 + 1); // TODO - More accurate stopping time
                 workerRequest.request.type = ReverseStoppedRequest;
                 workerRequest.request.train = request.train;
                 workerRequest.request.speed = oldSpeed;

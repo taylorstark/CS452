@@ -24,6 +24,15 @@ TrackInit
 }
 
 TRACK_NODE*
+GetTrack
+    (
+        VOID
+    )
+{
+    return g_trackNodes;
+}
+
+TRACK_NODE*
 TrackFindSensor
     (
         IN SENSOR* sensor
@@ -34,7 +43,6 @@ TrackFindSensor
     return &g_trackNodes[index];
 }
 
-inline
 TRACK_EDGE*
 TrackNextEdge
     (
@@ -61,7 +69,6 @@ TrackNextEdge
     }
 }
 
-inline
 TRACK_NODE*
 TrackNextNode
     (
@@ -71,6 +78,43 @@ TrackNextNode
     return TrackNextEdge(node)->dest;
 }
 
+static
+INT
+TrackFindNextNodeOfType
+    (
+        IN TRACK_NODE* node, 
+        IN NODE_TYPE type, 
+        OUT TRACK_NODE** nextNode
+    )
+{
+    TRACK_NODE* iterator = TrackNextNode(node);
+
+    while(type != iterator->type && NODE_EXIT != iterator->type)
+    {
+        iterator = TrackNextNode(iterator);
+    }
+
+    if(type == iterator->type)
+    {
+        *nextNode = iterator;
+        return 0;
+    }
+    else
+    {
+        return -1;
+    }
+}
+
+INT
+TrackFindNextBranch
+    (
+        IN TRACK_NODE* node, 
+        OUT TRACK_NODE** nextBranch
+    )
+{
+    return TrackFindNextNodeOfType(node, NODE_BRANCH, nextBranch);
+}
+
 INT
 TrackFindNextSensor
     (
@@ -78,22 +122,7 @@ TrackFindNextSensor
         OUT TRACK_NODE** nextSensor
     )
 {
-    TRACK_NODE* iterator = TrackNextNode(node);
-
-    while(NODE_SENSOR != iterator->type && NODE_EXIT != iterator->type)
-    {
-        iterator = TrackNextNode(iterator);
-    }
-
-    if(NODE_SENSOR == iterator->type)
-    {
-        *nextSensor = iterator;
-        return 0;
-    }
-    else
-    {
-        return -1;
-    }
+    return TrackFindNextNodeOfType(node, NODE_SENSOR, nextSensor);
 }
 
 INT
@@ -104,6 +133,12 @@ TrackDistanceBetween
         OUT UINT* distance
     )
 {
+    if(n1 == n2)
+    {
+        *distance = 0;
+        return 0;
+    }
+
     TRACK_EDGE* nextEdge = TrackNextEdge(n1);
     TRACK_NODE* nextNode = nextEdge->dest;
     UINT d = nextEdge->dist;

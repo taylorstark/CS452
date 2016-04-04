@@ -1,6 +1,7 @@
 #pragma once
 
 #include <rt.h>
+#include <track/track_data.h>
 #include <track/track_node.h>
 
 #define MAX_TRAINS 80
@@ -11,6 +12,7 @@
  ************************************/
 
 #define MAX_SPEED 14
+#define AVERAGE_TRAIN_COMMAND_LATENCY 12 // 120 ms
 
 typedef struct _TRAIN_SPEED
 {
@@ -167,7 +169,16 @@ typedef struct _TRAIN_LOCATION
     UCHAR train;
     LOCATION location;
     UINT velocity; // in micrometers / tick
+    UINT acceleration;
+    UINT accelerationTicks;
 } TRAIN_LOCATION;
+
+INT
+GetLocation
+    (
+        IN UCHAR train, 
+        OUT LOCATION* location
+    );
 
 INT
 LocationAwait
@@ -176,14 +187,86 @@ LocationAwait
     );
 
 /************************************
+ *       DESTINATION API            *
+ ************************************/
+
+INT
+TrainDestinationOnce
+    (
+        IN UCHAR train, 
+        IN LOCATION* location
+    );
+
+INT
+TrainDestinationForever
+    (
+        IN UCHAR train
+    );
+
+/************************************
+ *          ROUTE API               *
+ ************************************/
+
+typedef struct _PATH_NODE
+{
+    TRACK_NODE* node;
+    UINT direction;
+} PATH_NODE;
+
+typedef struct _PATH
+{
+    PATH_NODE nodes[TRACK_MAX];
+    UINT numNodes;
+    UINT totalDistance;
+    BOOLEAN performsReverse;
+} PATH;
+
+typedef struct _ROUTE
+{
+    TRAIN_LOCATION trainLocation;
+    PATH path;
+} ROUTE;
+
+INT
+RouteTrainToDestination
+    (
+        IN UCHAR train, 
+        IN LOCATION* destination
+    );
+
+INT
+RouteClearDestination
+    (
+        IN UCHAR train
+    );
+
+INT
+RouteAwait
+    (
+        OUT ROUTE* route
+    );
+
+/************************************
  *          STOP API                *
  ************************************/
+
+typedef struct _DESTINATION_REACHED
+{
+    UCHAR train;
+    LOCATION location;
+} DESTINATION_REACHED;
 
 INT
 StopTrainAtLocation
     (
         IN UCHAR train,
         IN LOCATION* location
+    );
+
+INT
+DestinationReachedAwait
+    (
+        OUT DESTINATION_REACHED* destinationReached
     );
 
 /************************************
@@ -202,9 +285,34 @@ TrackInit
     );
 
 TRACK_NODE*
+GetTrack
+    (
+        VOID
+    );
+
+TRACK_NODE*
 TrackFindSensor
     (
         IN SENSOR* sensor
+    );
+
+TRACK_EDGE*
+TrackNextEdge
+    (
+        IN TRACK_NODE* node
+    );
+
+TRACK_NODE*
+TrackNextNode
+    (
+        IN TRACK_NODE* node
+    );
+
+INT
+TrackFindNextBranch
+    (
+        IN TRACK_NODE* node, 
+        OUT TRACK_NODE** nextBranch
     );
 
 INT

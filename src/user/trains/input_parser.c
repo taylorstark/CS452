@@ -1,13 +1,12 @@
 #include "input_parser.h"
 
+#include "display.h"
 #include <rtkernel.h>
 #include <rtos.h>
 #include <rtosc/assert.h>
 #include <rtosc/stdlib.h>
 #include <rtosc/string.h>
 #include <user/trains.h>
-
-#include "display.h"
 
 static
 BOOLEAN
@@ -42,13 +41,13 @@ InputParserpParseCommand
         IN INT bufferLength
     )
 {
+    INT arg1 = 0;
     CHAR arg1Buffer[12];
-    CHAR arg2Buffer[12];
-    CHAR arg3Buffer[12];
+    arg1Buffer[11] = '\0';
 
-    INT arg1;
-    INT arg2;
-    INT arg3;
+    INT arg2 = 0;
+    CHAR arg2Buffer[12];
+    arg2Buffer[11] = '\0';
 
     CHAR token[12];
     INT read = RtStrConsumeToken(&buffer, token, sizeof(token));
@@ -100,24 +99,37 @@ InputParserpParseCommand
             }
         }
     }
-    else if (RtStrEqual(token, "stop"))
+    else if(RtStrEqual(token, "rt"))
     {
         read = RtStrConsumeToken(&buffer, arg1Buffer, sizeof(arg1Buffer));
+
+        if(read && RT_SUCCESS(RtAtoi(arg1Buffer, &arg1)))
+        {
+            if(RtStrIsWhitespace(buffer))
+            {
+                VERIFY(SUCCESSFUL(TrainDestinationForever(arg1)));
+            }
+        }
+    }
+    else if (RtStrEqual(token, "go"))
+    {
+        read = RtStrConsumeToken(&buffer, arg1Buffer, sizeof(arg1Buffer));
+
         if (read && RT_SUCCESS(RtAtoi(arg1Buffer, &arg1)))
         {
             read = RtStrConsumeToken(&buffer, arg2Buffer, sizeof(arg2Buffer));
-            if (read == 1)
+
+            if (read && RT_SUCCESS(RtAtoi(&arg2Buffer[1], &arg2)))
             {
-                read = RtStrConsumeToken(&buffer, arg3Buffer, sizeof(arg3Buffer));
-                if (read && RT_SUCCESS(RtAtoi(arg3Buffer, &arg3)))
+                if(RtStrIsWhitespace(buffer))
                 {
-                    if (RtStrIsWhitespace(buffer))
-                    {
-                        SENSOR sensor = { arg2Buffer[0], arg3 };
-                        TRACK_NODE* sensorNode = TrackFindSensor(&sensor);
-                        LOCATION location = { sensorNode, 0 };
-                        VERIFY(SUCCESSFUL(StopTrainAtLocation(arg1, &location)));
-                    }
+                    SENSOR sensor = { arg2Buffer[0], arg2 };
+
+                    LOCATION location;
+                    location.node = TrackFindSensor(&sensor);
+                    location.distancePastNode = 0;
+
+                    VERIFY(SUCCESSFUL(TrainDestinationOnce(arg1, &location)));
                 }
             }
         }

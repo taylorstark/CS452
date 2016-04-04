@@ -4,12 +4,15 @@
 
 #include "attribution_server.h"
 #include "calibration.h"
+#include "conductor.h"
 #include "clock.h"
+#include "destination_server.h"
 #include "display.h"
 #include "input_parser.h"
 #include "location_server.h"
 #include "performance.h"
 #include "physics.h"
+#include "route_server.h"
 #include "safety.h"
 #include "scheduler.h"
 #include "sensor_server.h"
@@ -25,7 +28,7 @@ InitTrainTasks
 {
     // Initialize libraries
     PhysicsInit();
-    TrackInit(TrackB);
+    TrackInit(TrackA);
 
     // Setup the display
     DisplayCreateTask();
@@ -42,8 +45,11 @@ InitTrainTasks
     AttributionServerCreate();
     LocationServerCreateTask();
     SafetyCreateTask();
-    StopServerCreate();
     SchedulerCreateTask();
+    RouteServerCreate();
+    ConductorCreateTask();
+    StopServerCreate();
+    DestinationServerCreate();
 
     //CalibrationCreateTask();
 }

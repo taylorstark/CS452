@@ -5,7 +5,7 @@
 #include <user/trains.h>
 
 static UINT g_steadyStateVelocities[MAX_TRAINS + 1][MAX_SPEED + 1]; // in micrometers per tick
-static UINT g_decelerations[MAX_TRAINS + 1]; // in micrometers per tick^2
+static UINT g_accelerations[MAX_TRAINS + 1]; // in micrometers per tick^2
 
 VOID
 PhysicsInit
@@ -45,10 +45,10 @@ PhysicsInit
     g_steadyStateVelocities[69][13] = 5924;
     g_steadyStateVelocities[69][14] = 5924;
 
-    RtMemset(g_decelerations, sizeof(g_decelerations), 0);
-    g_decelerations[58] = 1430;
-    g_decelerations[63] = 1635;
-    g_decelerations[69] = 1850;
+    RtMemset(g_accelerations, sizeof(g_accelerations), 0);
+    g_accelerations[58] = 1580;
+    g_accelerations[63] = 1850;
+    g_accelerations[69] = 2120;
 }
 
 UINT
@@ -68,27 +68,69 @@ PhysicsSteadyStateVelocity
     return steadyStateVelocity;
 }
 
-static
-INT
-PhysicspDeceleration
+UINT
+PhysicsAcceleration
     (
         IN UCHAR train
     )
 {
-    UINT deceleration = g_decelerations[train];
+    UINT acceleration = g_accelerations[train];
 
-    if(0 == deceleration)
+    if(0 == acceleration)
     {
         ASSERT(FALSE);
     }
 
-    return deceleration;
+    return acceleration;
 }
 
-static
-inline
+INT
+PhysicsCorrectAccelerationUnits
+    (
+        IN INT val
+    )
+{
+    return val / 100;
+}
+
+INT
+PhysicsCorrectAccelerationUnitsInverse
+    (
+        IN INT val
+    )
+{
+    return val * 100;
+}
+
 UINT
-PhysicspDistanceFromPickupToFrontOfTrain
+PhysicsDistanceTravelled
+    (
+        IN UINT velocity, 
+        IN UINT acceleration, 
+        IN UINT accelerationTime, 
+        IN UINT totalTime
+    )
+{
+    accelerationTime = min(accelerationTime, totalTime);
+
+    UINT distanceTravelledDueToAcceleration = 0;
+
+    for(UINT i = 0; i < accelerationTime; i++)
+    {
+        for(UINT j = i; j < accelerationTime; j++)
+        {
+            distanceTravelledDueToAcceleration += acceleration;
+        }
+    }
+
+    UINT accelerationDistance = (velocity * accelerationTime) + PhysicsCorrectAccelerationUnits(distanceTravelledDueToAcceleration);
+    UINT steadyStateDistance = PhysicsEndingVelocity(velocity, acceleration, accelerationTime) * (totalTime - accelerationTime);
+
+    return accelerationDistance + steadyStateDistance;
+}
+
+UINT
+PhysicsDistanceFromPickupToFrontOfTrain
     (
         IN DIRECTION direction
     )
@@ -104,8 +146,28 @@ PhysicsStoppingDistance
         IN DIRECTION direction
     )
 {
-    UINT stoppingDistance = (velocity * velocity * 50) / (PhysicspDeceleration(train));
+    UINT stoppingDistance = PhysicsCorrectAccelerationUnitsInverse(velocity * velocity) / (2 * g_accelerations[train]);
 
-    return stoppingDistance + PhysicspDistanceFromPickupToFrontOfTrain(direction);
+    return stoppingDistance + PhysicsDistanceFromPickupToFrontOfTrain(direction);
 }
 
+UINT
+PhysicsStoppingTime
+    (
+        IN UCHAR train, 
+        IN UINT velocity
+    )
+{
+    return PhysicsCorrectAccelerationUnitsInverse(velocity) / g_accelerations[train];
+}
+
+UINT
+PhysicsEndingVelocity
+    (
+        IN UINT startingVelocity, 
+        IN UINT acceleration, 
+        IN UINT accelerationTime
+    )
+{
+    return startingVelocity + PhysicsCorrectAccelerationUnits(accelerationTime * acceleration);
+}
