@@ -44,6 +44,12 @@ PhysicsDistanceTravelled
     );
 
 UINT
+PhysicsDistanceFromPickupToFrontOfTrain
+    (
+        IN DIRECTION direction
+    );
+
+UINT
 PhysicsStoppingDistance
     (
         IN UCHAR train, 

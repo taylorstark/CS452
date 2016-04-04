@@ -129,10 +129,8 @@ PhysicsDistanceTravelled
     return accelerationDistance + steadyStateDistance;
 }
 
-static
-inline
 UINT
-PhysicspDistanceFromPickupToFrontOfTrain
+PhysicsDistanceFromPickupToFrontOfTrain
     (
         IN DIRECTION direction
     )
@@ -150,7 +148,7 @@ PhysicsStoppingDistance
 {
     UINT stoppingDistance = PhysicsCorrectAccelerationUnitsInverse(velocity * velocity) / (2 * g_accelerations[train]);
 
-    return stoppingDistance + PhysicspDistanceFromPickupToFrontOfTrain(direction);
+    return stoppingDistance + PhysicsDistanceFromPickupToFrontOfTrain(direction);
 }
 
 UINT

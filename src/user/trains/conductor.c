@@ -16,7 +16,8 @@
 typedef enum _CONDUCTOR_REQUEST_TYPE
 {
     RouteUpdateRequest = 0, 
-    SpeedUpdateRequest
+    SpeedUpdateRequest, 
+    DirectionUpdateRequest
 } CONDUCTOR_REQUEST_TYPE;
 
 typedef struct _CONDUCTOR_REQUEST
@@ -27,12 +28,14 @@ typedef struct _CONDUCTOR_REQUEST
     {
         ROUTE route;
         TRAIN_SPEED trainSpeed;
+        TRAIN_DIRECTION trainDirection;
     };
 } CONDUCTOR_REQUEST;
 
 typedef struct _CONDUCTOR_DATA
 {
     UCHAR reverseCount;
+    DIRECTION direction;
 } CONDUCTOR_DATA;
 
 static
@@ -71,6 +74,26 @@ ConductorpSpeedChangeNotifierTask
     while(1)
     {
         VERIFY(SUCCESSFUL(TrainSpeedChangeAwait(&request.trainSpeed)));
+        VERIFY(SUCCESSFUL(Send(conductorId, &request, sizeof(request), NULL, 0)));
+    }
+}
+
+static
+VOID
+ConductorpDirectionChangeNotifierTask
+    (
+        VOID
+    )
+{
+    INT conductorId = MyParentTid();
+    ASSERT(SUCCESSFUL(conductorId));
+
+    CONDUCTOR_REQUEST request;
+    request.type = DirectionUpdateRequest;
+
+    while(1)
+    {
+        VERIFY(SUCCESSFUL(TrainDirectionChangeAwait(&request.trainDirection)));
         VERIFY(SUCCESSFUL(Send(conductorId, &request, sizeof(request), NULL, 0)));
     }
 }
@@ -134,11 +157,12 @@ ConductorpTask
                         else if(request.route.path.numNodes > 0)
                         {
                             // How far will the train move by the time we can issue a command?
-                            INT distanceTravelledBeforeCommandExecuted = PhysicsDistanceTravelled(request.route.trainLocation.velocity, 
-                                                                                                  request.route.trainLocation.acceleration, 
-                                                                                                  request.route.trainLocation.accelerationTicks, 
-                                                                                                  CONDUCTOR_TIME_TO_ACTUATE_SWITCH);
-                            INT distance = request.route.trainLocation.location.distancePastNode + distanceTravelledBeforeCommandExecuted;
+                            INT distanceBeforeCommand = PhysicsDistanceTravelled(request.route.trainLocation.velocity, 
+                                                                                 request.route.trainLocation.acceleration, 
+                                                                                 request.route.trainLocation.accelerationTicks, 
+                                                                                 CONDUCTOR_TIME_TO_ACTUATE_SWITCH);
+                            INT distanceToFrontOfTrain = PhysicsDistanceFromPickupToFrontOfTrain(data->direction);
+                            INT distance = request.route.trainLocation.location.distancePastNode + distanceBeforeCommand + distanceToFrontOfTrain;
                             UINT index = 0;
 
                             // Skip over nodes in the path we have no hope of issuing a command in time for
@@ -181,6 +205,13 @@ ConductorpTask
                     data->reverseCount--;
                 }
 
+                break;
+            }
+
+            case DirectionUpdateRequest:
+            {
+                trainData[request.trainDirection.train].direction = request.trainDirection.direction;
+                VERIFY(SUCCESSFUL(Reply(senderId, NULL, 0)));
                 break;
             }
 
