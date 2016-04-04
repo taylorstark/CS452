@@ -181,13 +181,6 @@ GetLocation
     );
 
 INT
-SetLocation
-    (
-        IN UCHAR train,
-        IN LOCATION* location
-    );
-
-INT
 LocationAwait
     (
         OUT TRAIN_LOCATION* trainLocation

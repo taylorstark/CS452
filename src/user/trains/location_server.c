@@ -22,15 +22,8 @@ typedef enum _LOCATION_SERVER_REQUEST_TYPE
     AttributedSensorUpdateRequest,
     SpeedUpdateRequest,
     DirectionUpdateRequest, 
-    GetLocationRequest, 
-    SetLocationRequest
+    GetLocationRequest
 } LOCATION_SERVER_REQUEST_TYPE;
-
-typedef struct _LOCATION_SERVER_SET_LOCATION_REQUEST
-{
-    UCHAR train;
-    LOCATION location;
-} LOCATION_SERVER_SET_LOCATION_REQUEST;
 
 typedef struct _LOCATION_SERVER_REQUEST
 {
@@ -42,7 +35,6 @@ typedef struct _LOCATION_SERVER_REQUEST
         ATTRIBUTED_SENSOR attributedSensor;
         TRAIN_SPEED trainSpeed;
         TRAIN_DIRECTION trainDirection;
-        LOCATION_SERVER_SET_LOCATION_REQUEST setLocation;
     };
 } LOCATION_SERVER_REQUEST;
 
@@ -538,23 +530,6 @@ LocationServerpTask
                 break;
             }
 
-            case SetLocationRequest:
-            {
-                TRAIN_DATA* trainData = LocationServerpFindTrainById(trackedTrains, numTrackedTrains, request.setLocation.train);
-
-                if(NULL != trainData)
-                {
-                    trainData->location = request.setLocation.location;
-                    VERIFY(SUCCESSFUL(Reply(senderId, NULL, 0)));
-                }
-                else
-                {
-                    ASSERT(FALSE);
-                }
-
-                break;
-            }
-
             default:
             {
                 ASSERT(FALSE);
@@ -591,30 +566,6 @@ GetLocation
         request.train = train;
 
         result = Send(locationServerId, &request, sizeof(request), location, sizeof(*location));
-    }
-
-    return result;
-}
-
-INT
-SetLocation
-    (
-        IN UCHAR train,
-        IN LOCATION* location
-    )
-{
-    INT result = WhoIs(LOCATION_SERVER_NAME);
-
-    if(SUCCESSFUL(result))
-    {
-        INT locationServerId = result;
-
-        LOCATION_SERVER_REQUEST request;
-        request.type = SetLocationRequest;
-        request.setLocation.train = train;
-        request.setLocation.location = *location;
-
-        result = Send(locationServerId, &request, sizeof(request), NULL, 0);
     }
 
     return result;

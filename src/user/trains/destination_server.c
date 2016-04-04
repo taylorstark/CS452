@@ -133,7 +133,10 @@ DestinationServerpGenerateRandomLocation
     location.distancePastNode = 0;
 
     // Check to see if the node is reachable
-    if(NODE_ENTER == location.node->type)
+    if(NODE_EXIT == location.node->edge[DIR_AHEAD].dest->type ||
+       NODE_EXIT == location.node->reverse->edge[DIR_AHEAD].dest->type ||
+       NODE_EXIT == location.node->edge[DIR_AHEAD].dest->edge[DIR_AHEAD].dest->type ||
+       NODE_EXIT == location.node->reverse->edge[DIR_AHEAD].dest->edge[DIR_AHEAD].dest->type)
     {
         return DestinationServerpGenerateRandomLocation(destinationData);
     }
@@ -255,7 +258,6 @@ DestinationServerpTask
                 destinationData->destination.distancePastNode = 0;
 
                 // TODO: These servers can't wait on the stop server, so we'll have to let them know
-                VERIFY(SUCCESSFUL(SetLocation(request.destinationReached.train, &request.destinationReached.location)));
                 VERIFY(SUCCESSFUL(RouteClearDestination(request.destinationReached.train)));
 
                 // Check to see if we should pick a new destination for this train

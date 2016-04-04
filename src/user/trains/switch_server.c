@@ -176,18 +176,23 @@ SwitchpTask
                     directions[switchIndex] = request.direction;
                     VERIFY(SUCCESSFUL(SwitchpDirection(&com1, request.sw, request.direction)));
                     VERIFY(SUCCESSFUL(SwitchpDisableSolenoid(&com1)));
-                }
-                
-                VERIFY(SUCCESSFUL(Reply(sender, NULL, 0)));
-                ShowSwitchDirection(switchIndex, request.sw, request.direction);
 
-                INT awaitingTask;
-                while(!RtCircularBufferIsEmpty(&awaitingTasks))
-                {
-                    VERIFY(RT_SUCCESS(RtCircularBufferPeekAndPop(&awaitingTasks, &awaitingTask, sizeof(awaitingTask))));
-                    VERIFY(SUCCESSFUL(Reply(awaitingTask, &request.sw, sizeof(request.sw))));
+                    VERIFY(SUCCESSFUL(Reply(sender, NULL, 0)));
+
+                    INT awaitingTask;
+                    while(!RtCircularBufferIsEmpty(&awaitingTasks))
+                    {
+                        VERIFY(RT_SUCCESS(RtCircularBufferPeekAndPop(&awaitingTasks, &awaitingTask, sizeof(awaitingTask))));
+                        VERIFY(SUCCESSFUL(Reply(awaitingTask, &request.sw, sizeof(request.sw))));
+                    }
+
+                    ShowSwitchDirection(switchIndex, request.sw, request.direction);
                 }
-                
+                else
+                {
+                    VERIFY(SUCCESSFUL(Reply(sender, NULL, 0)));
+                }
+
                 break;
             }
 

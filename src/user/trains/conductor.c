@@ -10,7 +10,7 @@
 #include <user/trains.h>
 
 #define CONDUCTOR_TRAIN_CRUISING_SPEED 10
-#define CONDUCTOR_MINIMUM_VELOCITY_TO_ACTUATE_SWITCH 500
+#define CONDUCTOR_MINIMUM_VELOCITY_TO_ACTUATE_SWITCH 2000
 #define CONDUCTOR_DISTANCE_TO_ACTUATE_SWITCH 100000 // 10 cm
 #define CONDUCTOR_TIME_TO_ACTUATE_SWITCH 20 // 200 ms
 
@@ -234,5 +234,5 @@ ConductorCreateTask
         VOID
     )
 {
-    VERIFY(SUCCESSFUL(Create(Priority17, ConductorpTask)));
+    VERIFY(SUCCESSFUL(Create(Priority21, ConductorpTask)));
 }
