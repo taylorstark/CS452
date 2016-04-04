@@ -10,6 +10,7 @@
 #include <user/trains.h>
 
 #define CONDUCTOR_TRAIN_CRUISING_SPEED 10
+#define CONDUCTOR_MINIMUM_VELOCITY_TO_ACTUATE_SWITCH 500
 #define CONDUCTOR_DISTANCE_TO_ACTUATE_SWITCH 100000 // 10 cm
 #define CONDUCTOR_TIME_TO_ACTUATE_SWITCH 20 // 200 ms
 
@@ -156,7 +157,7 @@ ConductorpTask
                         {
                             VERIFY(SUCCESSFUL(TrainSetSpeed(request.route.trainLocation.train, CONDUCTOR_TRAIN_CRUISING_SPEED)));
                         }
-                        else // Follow the route and look for switch that need to be switched
+                        else if(request.route.trainLocation.velocity > CONDUCTOR_MINIMUM_VELOCITY_TO_ACTUATE_SWITCH)
                         {
                             // How far will the train move by the time we can issue a command?
                             UINT distanceBeforeCommand = PhysicsDistanceTravelled(request.route.trainLocation.velocity, 
@@ -169,7 +170,7 @@ ConductorpTask
                             UINT distanceTravelled = 0;
                             UINT index = 0;
 
-                            while(distanceTravelled < distanceUpperBound)
+                            while(index < request.route.path.numNodes && distanceTravelled < distanceUpperBound)
                             {
                                 PATH_NODE* pathNode = &request.route.path.nodes[index++];
 
