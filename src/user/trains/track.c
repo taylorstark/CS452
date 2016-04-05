@@ -142,12 +142,14 @@ TrackDistanceBetween
     TRACK_EDGE* nextEdge = TrackNextEdge(n1);
     TRACK_NODE* nextNode = nextEdge->dest;
     UINT d = nextEdge->dist;
+    UINT edgesChecked = 0;
 
-    while(nextNode != n1 && nextNode != n2 && NODE_EXIT != nextNode->type)
+    while(edgesChecked < TRACK_MAX && nextNode != n1 && nextNode != n2 && NODE_EXIT != nextNode->type)
     {
         nextEdge = TrackNextEdge(nextNode);
         nextNode = nextEdge->dest;
         d += nextEdge->dist;
+        edgesChecked++;
     }
 
     if(nextNode == n2)
