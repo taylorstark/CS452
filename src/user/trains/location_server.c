@@ -234,7 +234,6 @@ LocationServerpFindActualLocation
     TRACK_EDGE* nextEdge = TrackNextEdge(actualLocation.node);
 
     while(NODE_EXIT != nextEdge->dest->type &&
-          NODE_BRANCH != nextEdge->dest->type && 
           actualLocation.distancePastNode > nextEdge->dist)
     {
         actualLocation.node = nextEdge->dest;
