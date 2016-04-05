@@ -13,6 +13,7 @@
 #define ROUTE_SERVER_NAME "route"
 #define INFINITY 0xFFFFFFFF
 #define ROUTE_SERVER_MINIMUM_VELOCITY_TO_BE_CONFIDENT_IN_POSITION 3000
+#define ROUTE_SERVER_BLOCKING_DISTANCE 300 // 30 cm
 
 typedef enum _ROUTE_REQUEST_TYPE
 {
@@ -166,6 +167,7 @@ RouteServerpFindRoute
         IN TRACK_NODE* graph, 
         IN TRACK_NODE* start, 
         IN TRACK_NODE* dest, 
+        IN BOOLEAN* blockedNodes, 
         OUT PATH* path
     )
 {
@@ -210,7 +212,7 @@ RouteServerpFindRoute
 
             if(cost < distance[neighbourIndex])
             {
-                if(NULL == previous[neighbourIndex].node)
+                if(!blockedNodes[neighbourIndex] && NULL == previous[neighbourIndex].node)
                 {
                     unvisitedNodes[numUnvisitedNodes++] = neighbour;
                 }
@@ -266,6 +268,50 @@ RouteServerpFindRoute
 }
 
 static
+VOID
+RouteServerpBlockNodes
+    (
+        IN TRACK_NODE* graph, 
+        IN TRACK_NODE* start, 
+        IN UINT distance, 
+        OUT BOOLEAN* blockedNodes
+    )
+{
+    // Block the start node
+    blockedNodes[RouteServerpIndex(graph, start)] = TRUE;
+
+    // Block any nodes near the start node
+    TRACK_EDGE* nextEdge = TrackNextEdge(start);
+    while(distance > nextEdge->dist)
+    {
+        blockedNodes[RouteServerpIndex(graph, nextEdge->dest)] = TRUE;
+        distance -= nextEdge->dist;
+        nextEdge = TrackNextEdge(nextEdge->dest);
+    }
+}
+
+static
+VOID
+RouteServerpCalculateBlockedNodes
+    (
+        IN TRACK_NODE* graph, 
+        IN UCHAR thisTrain, 
+        IN ROUTE_DATA* trackedTrains, 
+        IN UINT numTrackedTrains, 
+        OUT BOOLEAN* blockedNodes
+    )
+{
+    for(UINT i = 0; i < numTrackedTrains; i++)
+    {
+        if(trackedTrains[i].train != thisTrain && 0 == trackedTrains[i].currentLocation.velocity)
+        {
+            RouteServerpBlockNodes(graph, trackedTrains[i].currentLocation.location.node, ROUTE_SERVER_BLOCKING_DISTANCE, blockedNodes);
+            RouteServerpBlockNodes(graph, trackedTrains[i].currentLocation.location.node->reverse, ROUTE_SERVER_BLOCKING_DISTANCE, blockedNodes);
+        }
+    }
+}
+
+static
 UINT
 RouteServerpCalculateDirectionTaken
     (
@@ -293,12 +339,14 @@ RouteServerpCalculateDirectionTaken
 }
 
 static
-VOID
+BOOLEAN
 RouteServerpFixupReversePath
     (
+        IN TRACK_NODE* graph, 
         IN TRAIN_LOCATION* currentLocation, 
         IN DIRECTION direction, 
-        IN PATH* reversePath
+        IN BOOLEAN* blockedNodes, 
+        OUT PATH* reversePath
     )
 {
     PATH fixedPath;
@@ -318,6 +366,11 @@ RouteServerpFixupReversePath
 
     while(NODE_EXIT != iterator->type && stoppingDistance > 0)
     {
+        if(blockedNodes[RouteServerpIndex(graph, iterator)])
+        {
+            return FALSE;
+        }
+
         UINT direction = RouteServerpCalculateDirectionTaken(iterator);
         TRACK_EDGE* edgeTaken = &iterator->edge[direction];
         UINT distanceTaken = edgeTaken->dist * 1000; // Perform unit conversions
@@ -354,6 +407,7 @@ RouteServerpFixupReversePath
 
     // And now copy the fixed up path to the original path
     RtMemcpy(reversePath, &fixedPath, sizeof(fixedPath));
+    return TRUE;
 }
 
 static
@@ -361,6 +415,8 @@ PATH*
 RouteServerpSelectOptimalPath
     (
         IN TRACK_NODE* graph, 
+        IN ROUTE_DATA* trackedTrains, 
+        IN UINT numTrackedTrains,
         IN TRAIN_LOCATION* currentLocation, 
         IN TRACK_NODE* dest, 
         IN DIRECTION direction, 
@@ -368,16 +424,20 @@ RouteServerpSelectOptimalPath
         IN PATH* reversePath
     )
 {
-    BOOLEAN hasForwardPath = SUCCESSFUL(RouteServerpFindRoute(graph, currentLocation->location.node, dest, forwardPath));
+    BOOLEAN blockedNodes[TRACK_MAX];
+    RtMemset(blockedNodes, sizeof(blockedNodes), FALSE);
+    RouteServerpCalculateBlockedNodes(graph, currentLocation->train, trackedTrains, numTrackedTrains, blockedNodes);
+
+    BOOLEAN hasForwardPath = SUCCESSFUL(RouteServerpFindRoute(graph, currentLocation->location.node, dest, blockedNodes, forwardPath));
     BOOLEAN hasReversePath = FALSE;
 
     if(0 == currentLocation->velocity || currentLocation->velocity > ROUTE_SERVER_MINIMUM_VELOCITY_TO_BE_CONFIDENT_IN_POSITION)
     {
-        hasReversePath = SUCCESSFUL(RouteServerpFindRoute(graph, currentLocation->location.node->reverse, dest, reversePath));
+        hasReversePath = SUCCESSFUL(RouteServerpFindRoute(graph, currentLocation->location.node->reverse, dest, blockedNodes, reversePath));
 
         if(hasReversePath && reversePath->numNodes > 0)
         {
-            RouteServerpFixupReversePath(currentLocation, direction, reversePath);
+            hasReversePath = RouteServerpFixupReversePath(graph, currentLocation, direction, blockedNodes, reversePath);
         }
     }
     
@@ -489,11 +549,17 @@ RouteServerpTask
 
                     if(RouteServerpHasDestination(trainData))
                     {
+                        // Clear the old path
+                        RtMemset(&trainData->path, sizeof(trainData->path), 0);
+
+                        // Find a new path
                         DIRECTION direction = directions[request.trainLocation.train];
                         PATH forwardPath;
                         PATH reversePath;
 
                         PATH* optimalPath = RouteServerpSelectOptimalPath(graph, 
+                                                                          trackedTrains, 
+                                                                          numTrackedTrains, 
                                                                           &request.trainLocation, 
                                                                           trainData->destination.node, 
                                                                           direction, 
