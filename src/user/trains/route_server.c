@@ -586,7 +586,7 @@ RouteServerCreate
         VOID
     )
 {
-    VERIFY(SUCCESSFUL(Create(Priority18, RouteServerpTask)));
+    VERIFY(SUCCESSFUL(Create(Priority20, RouteServerpTask)));
 }
 
 INT

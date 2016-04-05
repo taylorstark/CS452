@@ -13,7 +13,7 @@
 #define LOCATION_SERVER_NAME "location"
 #define LOCATION_SERVER_REGISTRAR_NAME "location_registrar"
 
-#define LOCATION_SERVER_NOTIFIER_UPDATE_INTERVAL 2 // 20 ms
+#define LOCATION_SERVER_NOTIFIER_UPDATE_INTERVAL 3 // 30 ms
 #define LOCATION_SERVER_ALPHA 5
 
 typedef enum _LOCATION_SERVER_REQUEST_TYPE
@@ -296,7 +296,7 @@ LocationServerpTask
     )
 {
     VERIFY(SUCCESSFUL(RegisterAs(LOCATION_SERVER_NAME)));
-    VERIFY(SUCCESSFUL(Create(Priority23, LocationServerpVelocityNotifierTask)));
+    VERIFY(SUCCESSFUL(Create(Priority22, LocationServerpVelocityNotifierTask)));
     VERIFY(SUCCESSFUL(Create(HighestUserPriority, LocationServerpAttributedSensorNotifierTask)));
     VERIFY(SUCCESSFUL(Create(HighestUserPriority, LocationServerpSpeedChangeNotifierTask)));
     VERIFY(SUCCESSFUL(Create(HighestUserPriority, LocationServerpDirectionChangeNotifierTask)));
@@ -545,7 +545,7 @@ LocationServerCreateTask
         VOID
     )
 {
-    VERIFY(SUCCESSFUL(Create(Priority23, LocationServerpTask)));
+    VERIFY(SUCCESSFUL(Create(Priority21, LocationServerpTask)));
 }
 
 INT

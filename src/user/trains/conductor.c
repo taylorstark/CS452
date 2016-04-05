@@ -234,5 +234,5 @@ ConductorCreateTask
         VOID
     )
 {
-    VERIFY(SUCCESSFUL(Create(Priority21, ConductorpTask)));
+    VERIFY(SUCCESSFUL(Create(Priority18, ConductorpTask)));
 }

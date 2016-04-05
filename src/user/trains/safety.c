@@ -135,5 +135,5 @@ SafetyCreateTask
         VOID
     )
 {
-    VERIFY(SUCCESSFUL(Create(Priority22, SafetypTask)));
+    VERIFY(SUCCESSFUL(Create(Priority17, SafetypTask)));
 }

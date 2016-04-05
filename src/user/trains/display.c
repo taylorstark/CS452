@@ -329,9 +329,16 @@ DisplaypSendRequest
         IN DISPLAY_REQUEST* request
     )
 {
-    INT displayServerId = WhoIs(DISPLAY_NAME);
-    ASSERT(SUCCESSFUL(displayServerId));
-    return Send(displayServerId, request, sizeof(*request), NULL, 0);
+    INT result = WhoIs(DISPLAY_NAME);
+
+    if(SUCCESSFUL(result))
+    {
+        INT displayServerId = result;
+
+        result = Send(displayServerId, request, sizeof(*request), NULL, 0);
+    }
+
+    return result;
 }
 
 static

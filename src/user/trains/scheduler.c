@@ -204,5 +204,5 @@ SchedulerCreateTask
         VOID
     )
 {
-    VERIFY(SUCCESSFUL(Create(Priority15, SchedulerpTask)));
+    VERIFY(SUCCESSFUL(Create(Priority16, SchedulerpTask)));
 }
