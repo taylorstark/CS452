@@ -13,7 +13,7 @@
 #define ROUTE_SERVER_NAME "route"
 #define INFINITY 0xFFFFFFFF
 #define ROUTE_SERVER_MINIMUM_VELOCITY_TO_BE_CONFIDENT_IN_POSITION 3000
-#define ROUTE_SERVER_BLOCKING_DISTANCE 300 // 30 cm
+#define ROUTE_SERVER_BLOCKING_DISTANCE 200 // 20 cm
 
 typedef enum _ROUTE_REQUEST_TYPE
 {
@@ -279,12 +279,14 @@ RouteServerpBlockNodes
 {
     // Block the start node
     blockedNodes[RouteServerpIndex(graph, start)] = TRUE;
+    blockedNodes[RouteServerpIndex(graph, start->reverse)] = TRUE;
 
     // Block any nodes near the start node
     TRACK_EDGE* nextEdge = TrackNextEdge(start);
     while(distance > nextEdge->dist)
     {
         blockedNodes[RouteServerpIndex(graph, nextEdge->dest)] = TRUE;
+        blockedNodes[RouteServerpIndex(graph, nextEdge->dest->reverse)] = TRUE;
         distance -= nextEdge->dist;
         nextEdge = TrackNextEdge(nextEdge->dest);
     }
@@ -305,8 +307,14 @@ RouteServerpCalculateBlockedNodes
     {
         if(trackedTrains[i].train != thisTrain && 0 == trackedTrains[i].currentLocation.velocity)
         {
-            RouteServerpBlockNodes(graph, trackedTrains[i].currentLocation.location.node, ROUTE_SERVER_BLOCKING_DISTANCE, blockedNodes);
-            RouteServerpBlockNodes(graph, trackedTrains[i].currentLocation.location.node->reverse, ROUTE_SERVER_BLOCKING_DISTANCE, blockedNodes);
+            RouteServerpBlockNodes(graph, 
+                                   trackedTrains[i].currentLocation.location.node, 
+                                   ROUTE_SERVER_BLOCKING_DISTANCE + (trackedTrains[i].currentLocation.location.distancePastNode / 1000), // unit conversion 
+                                   blockedNodes);
+            RouteServerpBlockNodes(graph, 
+                                   trackedTrains[i].currentLocation.location.node->reverse, 
+                                   ROUTE_SERVER_BLOCKING_DISTANCE, 
+                                   blockedNodes);
         }
     }
 }
