@@ -396,7 +396,7 @@ AttributionServerCreate
         VOID
     )
 {
-    VERIFY(SUCCESSFUL(Create(Priority24, AttributionServerpTask)));
+    VERIFY(SUCCESSFUL(Create(Priority22, AttributionServerpTask)));
 }
 
 INT

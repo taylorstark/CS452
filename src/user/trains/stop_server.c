@@ -191,14 +191,14 @@ StopServerpTask
     VERIFY(SUCCESSFUL(RegisterAs(STOP_SERVER_NAME)));
     VERIFY(SUCCESSFUL(Create(HighestUserPriority, StopServerpRouteNotifierTask)));
     VERIFY(SUCCESSFUL(Create(HighestUserPriority, StopServerpDirectionChangeNotifierTask)));
-    VERIFY(SUCCESSFUL(Create(Priority14, StopServerpRegistrarTask)));
+    VERIFY(SUCCESSFUL(Create(Priority13, StopServerpRegistrarTask)));
 
     INT workerTasks[MAX_TRACKABLE_TRAINS];
     UINT nextWorkerTask = 0;
 
     for(UINT i = 0; i < MAX_TRACKABLE_TRAINS; i++)
     {
-        workerTasks[i] = Create(Priority13, StopServerpWorkerTask);
+        workerTasks[i] = Create(Priority12, StopServerpWorkerTask);
         ASSERT(SUCCESSFUL(workerTasks[i]));
     }
 
@@ -289,7 +289,7 @@ StopServerCreate
         VOID
     )
 {
-    VERIFY(SUCCESSFUL(Create(Priority21, StopServerpTask)));
+    VERIFY(SUCCESSFUL(Create(Priority19, StopServerpTask)));
 }
 
 INT

@@ -37,18 +37,16 @@ InitTrainTasks
     InputParserCreateTask();
 
     // Setup the track
+    SensorServerCreateTask();
     TrainServerCreate();
     SwitchServerCreate();
-
-    // Initialize remaining tasks
-    SensorServerCreateTask();
     AttributionServerCreate();
     LocationServerCreateTask();
+    RouteServerCreate();
+    StopServerCreate();
+    ConductorCreateTask();
     SafetyCreateTask();
     SchedulerCreateTask();
-    RouteServerCreate();
-    ConductorCreateTask();
-    StopServerCreate();
     DestinationServerCreate();
 
     //CalibrationCreateTask();

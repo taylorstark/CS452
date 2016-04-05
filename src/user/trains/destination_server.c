@@ -285,7 +285,7 @@ DestinationServerCreate
         VOID
     )
 {
-    VERIFY(SUCCESSFUL(Create(Priority16, DestinationServerpTask)));
+    VERIFY(SUCCESSFUL(Create(Priority15, DestinationServerpTask)));
 }
 
 INT

@@ -13,7 +13,7 @@
 #define LOCATION_SERVER_NAME "location"
 #define LOCATION_SERVER_REGISTRAR_NAME "location_registrar"
 
-#define LOCATION_SERVER_NOTIFIER_UPDATE_INTERVAL 2 // 20 ms
+#define LOCATION_SERVER_NOTIFIER_UPDATE_INTERVAL 3 // 30 ms
 #define LOCATION_SERVER_ALPHA 5
 
 typedef enum _LOCATION_SERVER_REQUEST_TYPE
@@ -180,14 +180,14 @@ LocationServerpRegistrarTask
 
             case LocationUpdateRequest:
             {
+                VERIFY(SUCCESSFUL(Reply(senderId, NULL, 0)));
+
                 INT awaitingTask;
                 while(!RtCircularBufferIsEmpty(&awaitingTasks))
                 {
                     VERIFY(RT_SUCCESS(RtCircularBufferPeekAndPop(&awaitingTasks, &awaitingTask, sizeof(awaitingTask))));
                     VERIFY(SUCCESSFUL(Reply(awaitingTask, &request.trainLocation, sizeof(request.trainLocation))));
                 }
-
-                VERIFY(SUCCESSFUL(Reply(senderId, NULL, 0)));
                 break;
             }
 
@@ -197,6 +197,27 @@ LocationServerpRegistrarTask
                 break;
             }
         }
+    }
+}
+
+static
+VOID
+LocationServerpCourier
+    (
+        VOID
+    )
+{
+    INT locationServerRegistrarId = WhoIs(LOCATION_SERVER_REGISTRAR_NAME);
+    ASSERT(SUCCESSFUL(locationServerRegistrarId));
+
+    while(1)
+    {
+        INT senderId;
+        LOCATION_SERVER_REGISTRAR_REQUEST request;
+
+        VERIFY(SUCCESSFUL(Receive(&senderId, &request, sizeof(request))));
+        VERIFY(SUCCESSFUL(Reply(senderId, NULL, 0)));
+        VERIFY(SUCCESSFUL(Send(locationServerRegistrarId, &request, sizeof(request), NULL, 0)));
     }
 }
 
@@ -296,16 +317,22 @@ LocationServerpTask
     )
 {
     VERIFY(SUCCESSFUL(RegisterAs(LOCATION_SERVER_NAME)));
-    VERIFY(SUCCESSFUL(Create(Priority23, LocationServerpVelocityNotifierTask)));
+    VERIFY(SUCCESSFUL(Create(Priority22, LocationServerpVelocityNotifierTask)));
     VERIFY(SUCCESSFUL(Create(HighestUserPriority, LocationServerpAttributedSensorNotifierTask)));
     VERIFY(SUCCESSFUL(Create(HighestUserPriority, LocationServerpSpeedChangeNotifierTask)));
     VERIFY(SUCCESSFUL(Create(HighestUserPriority, LocationServerpDirectionChangeNotifierTask)));
+    VERIFY(SUCCESSFUL(Create(Priority13, LocationServerpRegistrarTask)));
 
-    INT locationServerRegistrarId = Create(Priority13, LocationServerpRegistrarTask);
-    ASSERT(SUCCESSFUL(locationServerRegistrarId));
+    UINT nextCourierTask = 0;
+    INT courierTasks[MAX_TRACKABLE_TRAINS];
+    for(UINT i = 0; i < MAX_TRACKABLE_TRAINS; i++)
+    {
+        courierTasks[i] = Create(Priority12, LocationServerpCourier);
+        ASSERT(SUCCESSFUL(courierTasks[i]));
+    }
+
 
     UINT numTrackedTrains = 0;
-
     TRAIN_DATA trackedTrains[MAX_TRACKABLE_TRAINS];
     RtMemset(trackedTrains, sizeof(trackedTrains), 0);
 
@@ -379,7 +406,10 @@ LocationServerpTask
                             request.trainLocation.acceleration = LocationServerpAcceleration(trainData);
                             request.trainLocation.accelerationTicks = trainData->accelerationTicks;
 
-                            VERIFY(SUCCESSFUL(Send(locationServerRegistrarId, &request, sizeof(request), NULL, 0)));
+                            UINT courierId = courierTasks[nextCourierTask];
+                            nextCourierTask = (nextCourierTask + 1) % MAX_TRACKABLE_TRAINS;
+
+                            VERIFY(SUCCESSFUL(Send(courierId, &request, sizeof(request), NULL, 0)));
                         }
                     }
                 }
@@ -545,7 +575,7 @@ LocationServerCreateTask
         VOID
     )
 {
-    VERIFY(SUCCESSFUL(Create(Priority23, LocationServerpTask)));
+    VERIFY(SUCCESSFUL(Create(Priority21, LocationServerpTask)));
 }
 
 INT

@@ -236,7 +236,7 @@ TrainpTask
     UINT nextWorkerTask = 0;
     for(UINT i = 0; i < MAX_TRACKABLE_TRAINS; i++)
     {
-        workerTasks[i] = Create(Priority13, TrainpWorkerTask);
+        workerTasks[i] = Create(Priority12, TrainpWorkerTask);
         ASSERT(SUCCESSFUL(workerTasks[i]));
     }
 
@@ -501,5 +501,5 @@ TrainServerCreate
         VOID
     )
 {
-    VERIFY(SUCCESSFUL(Create(Priority20, TrainpTask)));
+    VERIFY(SUCCESSFUL(Create(Priority24, TrainpTask)));
 }

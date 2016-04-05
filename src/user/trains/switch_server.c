@@ -225,7 +225,7 @@ SwitchServerCreate
         VOID
     )
 {
-    VERIFY(SUCCESSFUL(Create(Priority19, SwitchpTask)));
+    VERIFY(SUCCESSFUL(Create(Priority23, SwitchpTask)));
 }
 
 INT

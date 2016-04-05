@@ -130,7 +130,7 @@ NameServerpFind
 
     return FALSE;
 }
-
+#include <bwio/bwio.h>
 VOID
 NameServerpTask
     (
@@ -168,7 +168,6 @@ NameServerpTask
                 if(!success)
                 {
                     response = ERROR_NAME_SERVER_NOT_FOUND;
-                    ASSERT(FALSE);
                 }
 
                 break;
