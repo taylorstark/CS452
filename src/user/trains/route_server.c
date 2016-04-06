@@ -14,6 +14,7 @@
 #define INFINITY 0xFFFFFFFF
 #define ROUTE_SERVER_MINIMUM_VELOCITY_TO_BE_CONFIDENT_IN_POSITION 3000
 #define ROUTE_SERVER_BLOCKING_DISTANCE 200 // 20 cm
+#define ROUTE_SERVER_ALLOWABLE_OVERLAP 100 // 1 second
 
 typedef enum _ROUTE_REQUEST_TYPE
 {
@@ -167,6 +168,7 @@ RouteServerpFindRoute
         IN TRACK_NODE* graph, 
         IN TRACK_NODE* start, 
         IN TRACK_NODE* dest, 
+        IN TRAIN_LOCATION* trainLocation, 
         IN BOOLEAN* blockedNodes, 
         OUT PATH* path
     )
@@ -220,6 +222,15 @@ RouteServerpFindRoute
                 distance[neighbourIndex] = cost;
                 previous[neighbourIndex].node = currentNode;
                 previous[neighbourIndex].direction = i;
+
+                if(trainLocation->velocity > 0 && cost * 1000 > trainLocation->location.distancePastNode)
+                {
+                    previous[neighbourIndex].expectedArrivalTime = (cost * 1000 - trainLocation->location.distancePastNode) / trainLocation->velocity;
+                }
+                else
+                {
+                    previous[neighbourIndex].expectedArrivalTime = 0;
+                }
             }
         }
     }
@@ -228,10 +239,11 @@ RouteServerpFindRoute
 
     if(NULL != previous[destIndex].node)
     {
-        path->nodes[0].node = dest;
-        path->nodes[0].direction = 0;
         path->numNodes = 1;
         path->totalDistance = distance[destIndex] * 1000; // need to perform unit conversion
+        path->nodes[0].node = dest;
+        path->nodes[0].direction = 0;
+        path->nodes[0].expectedArrivalTime = trainLocation->velocity > 0 ? path->totalDistance / trainLocation->velocity : 0;        
 
         PATH_NODE* iterator = &previous[destIndex];
 
@@ -245,9 +257,10 @@ RouteServerpFindRoute
         // The path is in reverse order
         for(UINT i = 0; i < path->numNodes / 2; i++)
         {
-            PATH_NODE temp = path->nodes[i];
-            path->nodes[i] = path->nodes[path->numNodes - i - 1];
-            path->nodes[path->numNodes - i - 1] = temp;
+            PATH_NODE temp;
+            RtMemcpy(&temp, &path->nodes[i], sizeof(temp));
+            RtMemcpy(&path->nodes[i], &path->nodes[path->numNodes - i - 1], sizeof(path->nodes[i]));
+            RtMemcpy(&path->nodes[path->numNodes - i - 1], &temp, sizeof(&path->nodes[path->numNodes - i - 1]));
         }
 
         return 0;
@@ -256,6 +269,7 @@ RouteServerpFindRoute
     {
         path->nodes[0].node = dest;
         path->nodes[0].direction = 0;
+        path->nodes[0].expectedArrivalTime = 0;
         path->numNodes = 1;
         path->totalDistance = 0;
 
@@ -353,6 +367,7 @@ RouteServerpFixupReversePath
         IN TRACK_NODE* graph, 
         IN TRAIN_LOCATION* currentLocation, 
         IN DIRECTION direction, 
+        IN UINT velocity, 
         IN BOOLEAN* blockedNodes, 
         OUT PATH* reversePath
     )
@@ -388,8 +403,10 @@ RouteServerpFixupReversePath
 
         fixedPath.nodes[fixedPath.numNodes].node = iterator;
         fixedPath.nodes[fixedPath.numNodes].direction = direction;
+        fixedPath.totalDistance += distanceTaken; // must increment before calculating arrival time
+        fixedPath.nodes[fixedPath.numNodes].expectedArrivalTime = velocity > 0 ? fixedPath.totalDistance / velocity : 0;
         fixedPath.numNodes++;
-        fixedPath.totalDistance += distanceTaken;
+        
     }
 
     // Compute the nodes travelled while performing the reverse
@@ -402,20 +419,77 @@ RouteServerpFixupReversePath
 
         fixedPath.nodes[fixedPath.numNodes].node = reversedNode;
         fixedPath.nodes[fixedPath.numNodes].direction = direction;
+        fixedPath.nodes[fixedPath.numNodes].expectedArrivalTime = velocity > 0 ? (reversedNode->edge[direction].dist * 1000) / velocity : 0;
         fixedPath.numNodes++;
     }
 
     // Copy over the rest of the path
     fixedPath.totalDistance += reversePath->totalDistance;
+    UINT timeOffset = fixedPath.numNodes > 0 ? fixedPath.nodes[fixedPath.numNodes - 1].expectedArrivalTime : 0;
 
     for(UINT i = 0; i < reversePath->numNodes; i++)
     {
-        fixedPath.nodes[fixedPath.numNodes++] = reversePath->nodes[i];
+        fixedPath.nodes[fixedPath.numNodes].node = reversePath->nodes[i].node;
+        fixedPath.nodes[fixedPath.numNodes].direction = reversePath->nodes[i].direction;
+        fixedPath.nodes[fixedPath.numNodes].expectedArrivalTime = reversePath->nodes[i].expectedArrivalTime + timeOffset;
+        fixedPath.numNodes++;
     }
 
     // And now copy the fixed up path to the original path
     RtMemcpy(reversePath, &fixedPath, sizeof(fixedPath));
     return TRUE;
+}
+
+static
+TRACK_NODE*
+RouteServerpFindCollision
+    (
+        IN PATH* p1, 
+        IN PATH* p2
+    )
+{
+    UINT minNumNodes = min(p1->numNodes, p2->numNodes);
+
+    for(UINT i = 0; i < minNumNodes; i++)
+    {
+        if(p1->nodes[i].node == p2->nodes[i].node || p1->nodes[i].node == p2->nodes[i].node->reverse)
+        {
+            INT diff = ((INT) p1->nodes[i].expectedArrivalTime) - ((INT) p2->nodes[i].expectedArrivalTime);
+
+            if(abs(diff) < ROUTE_SERVER_ALLOWABLE_OVERLAP)
+            {
+                return p1->nodes[i].node;
+            }
+        }
+    }
+
+    return NULL;
+}
+
+static
+TRACK_NODE*
+RouteServerpFindFirstCollision
+    (
+        IN PATH* path, 
+        IN UCHAR thisTrain, 
+        IN ROUTE_DATA* trackedTrains, 
+        IN UINT numTrackedTrains
+    )
+{
+    for(UINT i = 0; i < numTrackedTrains; i++)
+    {
+        if(trackedTrains[i].train != thisTrain)
+        {
+            TRACK_NODE* collision = RouteServerpFindCollision(path, &trackedTrains[i].path);
+
+            if(NULL != collision)
+            {
+                return collision;
+            }
+        }
+    }
+
+    return NULL;
 }
 
 static
@@ -436,48 +510,74 @@ RouteServerpSelectOptimalPath
     RtMemset(blockedNodes, sizeof(blockedNodes), FALSE);
     RouteServerpCalculateBlockedNodes(graph, currentLocation->train, trackedTrains, numTrackedTrains, blockedNodes);
 
-    BOOLEAN hasForwardPath = SUCCESSFUL(RouteServerpFindRoute(graph, currentLocation->location.node, dest, blockedNodes, forwardPath));
-    BOOLEAN hasReversePath = FALSE;
-
-    if(0 == currentLocation->velocity || currentLocation->velocity > ROUTE_SERVER_MINIMUM_VELOCITY_TO_BE_CONFIDENT_IN_POSITION)
+    for(UINT i = 0; i < 3; i++)
     {
-        hasReversePath = SUCCESSFUL(RouteServerpFindRoute(graph, currentLocation->location.node->reverse, dest, blockedNodes, reversePath));
+        RtMemset(forwardPath, sizeof(*forwardPath), 0);
+        RtMemset(reversePath, sizeof(*reversePath), 0);
+        
+        BOOLEAN hasForwardPath = SUCCESSFUL(RouteServerpFindRoute(graph, currentLocation->location.node, dest, currentLocation, blockedNodes, forwardPath));
+        BOOLEAN hasReversePath = FALSE;
 
-        if(hasReversePath && reversePath->numNodes > 0)
+        if(0 == currentLocation->velocity || currentLocation->velocity > ROUTE_SERVER_MINIMUM_VELOCITY_TO_BE_CONFIDENT_IN_POSITION)
         {
-            hasReversePath = RouteServerpFixupReversePath(graph, currentLocation, direction, blockedNodes, reversePath);
+            hasReversePath = SUCCESSFUL(RouteServerpFindRoute(graph, currentLocation->location.node->reverse, dest, currentLocation, blockedNodes, reversePath));
+
+            if(hasReversePath && reversePath->numNodes > 0)
+            {
+                hasReversePath = RouteServerpFixupReversePath(graph, currentLocation, direction, currentLocation->velocity, blockedNodes, reversePath);
+            }
         }
-    }
-    
-    forwardPath->performsReverse = FALSE;
-    reversePath->performsReverse = TRUE;
 
-    if(hasForwardPath && hasReversePath)
-    {
-        UINT reversePathWeight = reversePath->totalDistance + (currentLocation->velocity * 400);
+        forwardPath->performsReverse = FALSE;
+        reversePath->performsReverse = TRUE;
 
-        // Compare the cost of going forward against the cost of going in reverse
-        if(reversePathWeight < forwardPath->totalDistance)
+        PATH* selectedPath = NULL;
+
+        if(hasForwardPath && hasReversePath)
         {
-            return reversePath;
+            UINT reversePathWeight = reversePath->totalDistance + (currentLocation->velocity * 400);
+
+            // Compare the cost of going forward against the cost of going in reverse
+            if(reversePathWeight < forwardPath->totalDistance)
+            {
+                selectedPath = reversePath;
+            }
+            else
+            {
+                selectedPath = forwardPath;
+            }
+        }
+        else if(hasForwardPath)
+        {
+            selectedPath = forwardPath;
+        }
+        else if(hasReversePath)
+        {
+            selectedPath = reversePath;
+        }
+
+        if(NULL != selectedPath)
+        {
+            TRACK_NODE* firstCollision = RouteServerpFindFirstCollision(selectedPath, currentLocation->train, trackedTrains, numTrackedTrains);
+
+            if(NULL != firstCollision)
+            {
+                blockedNodes[RouteServerpIndex(graph, firstCollision)] = TRUE;
+                blockedNodes[RouteServerpIndex(graph, firstCollision->reverse)] = TRUE;
+                Log("Col %s", firstCollision->name);
+            }
+            else
+            {
+                return selectedPath;
+            }
         }
         else
         {
-            return forwardPath;
+            return NULL;
         }
     }
-    else if(hasForwardPath)
-    {
-        return forwardPath;
-    }
-    else if(hasReversePath)
-    {
-        return reversePath;
-    }
-    else
-    {
-        return NULL;
-    }
+
+    return NULL;
 }
 
 static
@@ -583,9 +683,13 @@ RouteServerpTask
                             optimalPath = &forwardPath;
                         }
 
+                        // Remember the path
+                        RtMemcpy(&trainData->path, optimalPath, sizeof(trainData->path));
+
+                        // Send the path to any registrants
                         ROUTE route;
-                        RtMemcpy(&route.trainLocation, &request.trainLocation, sizeof(route.trainLocation));
-                        RtMemcpy(&route.path, optimalPath, sizeof(route.path));
+                        RtMemcpy(&route.trainLocation, &trainData->currentLocation, sizeof(route.trainLocation));
+                        RtMemcpy(&route.path, &trainData->path, sizeof(route.path));
 
                         INT awaitingTask;
                         while(!RtCircularBufferIsEmpty(&awaitingTasks))
