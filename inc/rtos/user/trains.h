@@ -211,6 +211,7 @@ typedef struct _PATH_NODE
 {
     TRACK_NODE* node;
     UINT direction;
+    UINT expectedArrivalTime;
 } PATH_NODE;
 
 typedef struct _PATH
